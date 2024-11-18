@@ -15,6 +15,7 @@ Nt    = length(MDP);               % number of trials
 Ne    = size(MDP(1).V,1) + 1;      % number of epochs per trial
 Np    = size(MDP(1).V,2) + 1;      % number of policies
 f_act = 10;                        % state factor for which to display sampled actions
+mod_out = 1;                       % outcome modality for which to display outcomes
 timestep_of_trial_to_plot = 1;
 
 for i = 1:Nt
@@ -33,13 +34,20 @@ for i = 1:Nt
     end
     act_prob(:,i) = MDP(i).P(:,:,:,:,:,:,:,:,:,:,timestep_of_trial_to_plot);
     act(:,i) = MDP(i).u(f_act,timestep_of_trial_to_plot);
-    w(:,i) = mean(MDP(i).dn,2);
+    pref(:, i) = MDP(i).C{mod_out}(:, timestep_of_trial_to_plot);
+    outcomes(:, i) = MDP(i).o(mod_out, timestep_of_trial_to_plot+1);
+    posterior_states(:, i) = MDP(i).X{f_act}(:, timestep_of_trial_to_plot+1);
+    states(:, i) = MDP(i).s(f_act, timestep_of_trial_to_plot+1);
+    dn(:,i) = mean(MDP(i).dn,2);
+    %wn(:,i) = mean(MDP(i).wn,2);
+    wn(:,i) = MDP(i).wn;
+
 end
 
-% Initial states and expected policies (habit in red)
+% Actions
 %--------------------------------------------------------------------------
 col   = {'r.','g.','b.','c.','m.','k.'};
-subplot(5,1,1)
+subplot(7,1,1)
 if Nt < 64
     MarkerSize = 24;
 else
@@ -48,7 +56,7 @@ end
 
 image(64*(1 - act_prob)),  hold on
 
-plot(act,col{3},'MarkerSize',MarkerSize)
+plot(act,col{1},'MarkerSize',MarkerSize)
 
 try
     plot(Np*(1 - act_prob(Np,:)),'r')
@@ -63,6 +71,76 @@ yticks([1, 2])
 yticklabels({'Card 1', 'Card 2'})
 
 %============================================
+
+% Outcomes and preference
+%--------------------------------------------------------------------------
+subplot(7,1,2)
+if Nt < 64
+    MarkerSize = 24;
+else
+    MarkerSize = 16;
+end
+
+image(64*(1 - pref)),  hold on
+
+plot(outcomes,col{1},'MarkerSize',MarkerSize)
+
+
+title('Outcomes and outcome probabilities')
+xlabel('Trial'),ylabel('Outcomes'), hold off
+yticks([1, 2, 3])
+yticklabels({'Incorrect', 'Correct', 'Null'})
+
+
+% posterior beliefs about hidden states
+%--------------------------------------------------------------------------
+subplot(7,1,3)
+if Nt < 64
+    MarkerSize = 24;
+else
+    MarkerSize = 16;
+end
+
+image(64*(1 - posterior_states)),  hold on
+
+plot(states,col{1},'MarkerSize',MarkerSize)
+
+
+title('Posterior beliefs (choice state factor)')
+xlabel('Trial'),ylabel('States'), hold off
+yticks([1, 2, 3])
+yticklabels({'Card 1', 'Card 2', 'Undecided'})
+
+
+% expected precision
+%--------------------------------------------------------------------------
+subplot(7,1,4)
+if size(dn,2) > 1
+    plot(dn,'r:'),   hold on, plot(wn,'c','LineWidth',2), hold off
+else
+    bar(dn,1.1,'k'), hold on, plot(wn,'c','LineWidth',2), hold off
+end
+title('Expected precision (dopamine)')
+xlabel('updates'), ylabel('precision'), spm_axis tight, box off
+
+
+% changes in expected precision
+% ------------------------------------------------------------------
+subplot(7,1,5)
+dn    = spm_vec(dn);
+dn    = dn.*(dn > 0);
+dn    = dn + (dn + 1/16).*rand(size(dn))/8;
+bar(dn,1,'k'), title('Dopamine responses','FontSize',16)
+xlabel('time (updates)','FontSize',12)
+ylabel('change in precision','FontSize',12), spm_axis tight, box off
+YLim = get(gca,'YLim'); YLim(1) = 0; set(gca,'YLim',YLim);
+
+
+% free energy & confidence
+% ------------------------------------------------------------------
+[F,Fu] = spm_MDP_F(MDP);
+subplot(7,1,6), plot(1:Nt,F),  xlabel('trial'), spm_axis tight, title('Free energy','Fontsize',16)
+subplot(7,1,7), plot(1:Nt,Fu), xlabel('trial'), spm_axis tight, title('Confidence','Fontsize',16)
 
 % % posterior beliefs about hidden states
 % figure;
