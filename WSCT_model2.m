@@ -1,141 +1,193 @@
 %% WISCONSIN SORTING CARD TASK (modifed)
 
-clear
+clear all
 
-% Number of time steps
+% Number of time steps per trial
 T = 2;
+
+% HIDDEN STATE FACTORS
+% =========================================================
 % Number of hidden state factors
-Nf = 10;
+Nf = 3;
+% We assume: Card 1 = {triangle x red x 1}, Card 2 = {circle x blue x 2}
 % Number of states per factor
+Ns(1) = 4; % rule = {shape, color, number, exclusion}
+Ns(2) = 8; % conjunction = {circle x blue x 1, circle x blue x 2,
+           %   (card 3)    circle x red x 1, circle x red x 2,
+           %               triangle x blue x 1, triangle x blue x 2,
+           %               triangle x red x 1, triangle x red x 2}
+Ns(3) = 3; % choice = {card 1, card 2, undecided}
+% Prior for initial states in generative process
+D{1} = [0, 0, 0, 1]';                     % rule = shape
+D{2} = [0, 0, 0, 0, 1, 0, 0, 0]';         % card 1 = triangle x blue x 1
+D{3} = [0, 0, 1]';                        % choice = undecided
+% Prior for initial states in generative model
+d{1} = [0.25, 0.25, 0.25, 0.25]';
+d{2} = [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25]';
+d{3} = [0, 0, 1]';
+% TRANSITION MATRICES
+% --------------------------------------------------------
+Nu = 2;                                 % number of actions
 for f=1:Nf-1
-    Ns(f) = 2;
+    B{f}(:, :) = eye(Ns(f));            % features and rule do not change within a trial
 end
-Ns(Nf) = 3;
-% Number of actions
-Nu = 2;
+B{Nf} = zeros(Ns(Nf), Ns(Nf), Nu);
+B{Nf}(1, 1, 1) = 1;
+B{Nf}(1, 2, 1) = 1;
+B{Nf}(1, 3, 1) = 1;
+B{Nf}(2, 1, 2) = 1;
+B{Nf}(2, 2, 2) = 1;
+B{Nf}(2, 3, 2) = 1;
+% Actions (shallow policies)
+for f=1:Nf-1
+    U(:, :, f) = [1 1];                 % features and rule not controllable
+end
+U(:, :, Nf) = [1 2];                    % choice state controllable
+
+
+% OUTCOME MODALITIES
+% =========================================================
 % Number of outcome factors
-Ng = 1;
+Ng = 4;
 % Number of outcomes per factor
-No(1) = 3;
-
-
-% priors for initial states in generative process
-% card 1
-D{1} = [1, 0]'; % shape of card 1 is a circle
-D{2} = [1, 0]'; % color of card 1 is red
-D{3} = [1, 0]'; % card 1 has 1 symbol
-% card 2
-D{4} = [0, 1]'; % shape of card 2 is a triangle
-D{5} = [0, 1]'; % color of card 2 is blue
-D{6} = [0, 1]'; % card 2 has 2 symbols
-% card 3
-D{7} = [1, 0]';  % shape of card 3 is a circle
-D{8} = [0, 1]'; % color of card 3 is blue
-D{9} = [0, 1]'; % card 3 has 2 symbols
-% choice state
-D{10} = [0, 0, 1]'; % undecided
-
-% priors for initial states in generative model
-% card 1
-d{1} = [0.25, 0.25]';
-d{2} = [0.25, 0.25]';
-d{3} = [0.25, 0.25]';
-% card 2
-d{4} = [0.25, 0.25]';
-d{5} = [0.25, 0.25]';
-d{6} = [0.25, 0.25]';
-% card 3
-d{7} = [0.25, 0.25]';
-d{8} = [0.25, 0.25]';
-d{9} = [0.25, 0.25]';
-% choice state
-d{10} = [0, 0, 1]'; % agent knows it's undecided
-
+No(1) = 2; % shape = {circle, triangle}
+No(2) = 2; % color = {blue, red}
+No(3) = 2; % number = {1, 2}
+No(4) = 3; % feedback = {incorrect, correct, undecided}
 
 % LIKELIHOOD MAPPING
 % --------------------------------------------------------
-dims_A = [No(1), Ns(1), Ns(2), Ns(3), Ns(4), Ns(5), Ns(6), Ns(7), Ns(8), Ns(9), Ns(10)];
-A{1} = zeros(dims_A);
-% outcome = incorrect when shapes don't match
-% card 1 is chosen but shapes don't match
-A{1}(1, 2, :, :, :, :, :, 1, :, :, 1) = 1;
-A{1}(1, 1, :, :, :, :, :, 2, :, :, 1) = 1;
-% card 2 is chosen but shapes don't match
-A{1}(1, :, :, :, 2, :, :, 1, :, :, 2) = 1;
-A{1}(1, :, :, :, 1, :, :, 2, :, :, 2) = 1;
+A{1}=zeros([No(1), Ns(1), Ns(2), Ns(3)]);
+A{2}=zeros([No(2), Ns(1), Ns(2), Ns(3)]);
+A{3}=zeros([No(3), Ns(1), Ns(2), Ns(3)]);
+A{4}=zeros([No(4), Ns(1), Ns(2), Ns(3)]);
 
-% outcome = correct when shapes match
-% choice = card 1 and 1 & 3 shapes match
-A{1}(2, 2, :, :, :, :, :, 2, :, :, 1) = 1;
-A{1}(2, 1, :, :, :, :, :, 1, :, :, 1) = 1;
-% cards 2 is chosen and 2 & 3 shapes match
-A{1}(2, :, :, :, 2, :, :, 2, :, :, 2) = 1;
-A{1}(2, :, :, :, 1, :, :, 1, :, :, 2) = 1;
-
-% outcome = null when choice_state is undecided
-A{1}(3, :, :, :, :, :, :, :, :, :, 3) = 1;
-
-% likelihood mapping in the generative model
-a{1} = A{1}*200;
-a{1}(1, :, :, :, :, :, :, :, :, :, 1) = 0.25;
-a{1}(1, :, :, :, :, :, :, :, :, :, 2) = 0.25;
-a{1}(2, :, :, :, :, :, :, :, :, :, 1) = 0.25;
-a{1}(2, :, :, :, :, :, :, :, :, :, 2) = 0.25;
-
-
-
-% POLICIES (shallow)
-% ------------------------------------------------------
-% U = zeros(1, 3, 10);
-% V = ones(T-1,Nu,Nf);
-% V(:, :, 10) = [1 2];
-% card features not controllable
-for f=1:Nf-1
-    U(:, :, f) = [1 1];
+% Shape = circle
+A{1}(1, :, 1, :) = 1;
+A{1}(1, :, 2, :) = 1;
+A{1}(1, :, 3, :) = 1;
+A{1}(1, :, 4, :) = 1;
+% Shape = triangle
+A{1}(2, :, 5, :) = 1;
+A{1}(2, :, 6, :) = 1;
+A{1}(2, :, 7, :) = 1;
+A{1}(2, :, 8, :) = 1;
+% Color = blue
+A{2}(1, :, 1, :) = 1;
+A{2}(1, :, 2, :) = 1;
+A{2}(1, :, 5, :) = 1;
+A{2}(1, :, 6, :) = 1;
+% Color = red
+A{2}(2, :, 3, :) = 1;
+A{2}(2, :, 4, :) = 1;
+A{2}(2, :, 7, :) = 1;
+A{2}(2, :, 8, :) = 1;
+% Num = 1
+A{3}(1, :, 1, :) = 1;
+A{3}(1, :, 3, :) = 1;
+A{3}(1, :, 5, :) = 1;
+A{3}(1, :, 7, :) = 1;
+% Num 2
+A{3}(2, :, 2, :) = 1;
+A{3}(2, :, 4, :) = 1;
+A{3}(2, :, 6, :) = 1;
+A{3}(2, :, 8, :) = 1;
+% Feedback = null
+A{4}(3, :, :, 3) = 1;        % choice = undecided
+% RULE = MATCHING BY SHAPE
+% feedback = incorrect
+A{4}(1, 1, 1, 1) = 1;        % card 1 chosen but shape = circle
+A{4}(1, 1, 2, 1) = 1;
+A{4}(1, 1, 3, 1) = 1;
+A{4}(1, 1, 4, 1) = 1;
+A{4}(1, 1, 5, 2) = 1;        % card 2 chosen but shape = triangle
+A{4}(1, 1, 6, 2) = 1;
+A{4}(1, 1, 7, 2) = 1;
+A{4}(1, 1, 8, 2) = 1;
+% feedback = correct
+A{4}(2, 1, 5, 1) = 1;        % card 1 chosen and shape = triangle
+A{4}(2, 1, 6, 1) = 1;
+A{4}(2, 1, 7, 1) = 1;
+A{4}(2, 1, 8, 1) = 1;
+A{4}(2, 1, 1, 2) = 1;        % card 2 chosen and shape = cicle
+A{4}(2, 1, 2, 2) = 1;
+A{4}(2, 1, 3, 2) = 1;
+A{4}(2, 1, 4, 2) = 1;
+% RULE = MATCHING BY COLOR
+% feedback = incorrect
+A{4}(1, 2, 1, 1) = 1;        % card 1 chosen but color = blue
+A{4}(1, 2, 2, 1) = 1;
+A{4}(1, 2, 5, 1) = 1;
+A{4}(1, 2, 6, 1) = 1;
+A{4}(1, 2, 3, 2) = 1;        % card 2 chosen but color = red
+A{4}(1, 2, 4, 2) = 1;
+A{4}(1, 2, 7, 2) = 1;
+A{4}(1, 2, 8, 2) = 1;
+% feedback = correct
+A{4}(2, 2, 3, 1) = 1;        % card 1 chosen and color = red
+A{4}(2, 2, 4, 1) = 1;
+A{4}(2, 2, 7, 1) = 1;
+A{4}(2, 2, 8, 1) = 1;
+A{4}(2, 2, 1, 2) = 1;        % card 2 chosen and color = blue
+A{4}(2, 2, 2, 2) = 1;
+A{4}(2, 2, 5, 2) = 1;
+A{4}(2, 2, 6, 2) = 1;
+% RULE = MATCHING BY NUMBER
+% feedback = incorrect
+A{4}(1, 3, 2, 1) = 1;        % card 1 chosen but num = 2
+A{4}(1, 3, 4, 1) = 1;
+A{4}(1, 3, 6, 1) = 1;
+A{4}(1, 3, 8, 1) = 1;
+A{4}(1, 3, 1, 2) = 1;        % card 2 chosen but num = 1
+A{4}(1, 3, 3, 2) = 1;
+A{4}(1, 3, 5, 2) = 1;
+A{4}(1, 3, 7, 2) = 1;
+% feedback = correct
+A{4}(2, 3, 1, 1) = 1;        % card 1 chosen and num = 1
+A{4}(2, 3, 3, 1) = 1;
+A{4}(2, 3, 5, 1) = 1;
+A{4}(2, 3, 7, 1) = 1;
+A{4}(2, 3, 2, 2) = 1;        % card 2 chosen and num = 2
+A{4}(2, 3, 4, 2) = 1;
+A{4}(2, 3, 6, 2) = 1;
+A{4}(2, 3, 8, 2) = 1;
+% RULE = NO MATCHING FEATURES (exclusion)
+% feedback = incorrect
+A{4}(1, 4, 1, 1) = 1;        % card 1 chosen but at least one same feature
+A{4}(1, 4, 3, 1) = 1;
+A{4}(1, 4, 4, 1) = 1;
+A{4}(1, 4, 5, 1) = 1;
+A{4}(1, 4, 6, 1) = 1;
+A{4}(1, 4, 7, 1) = 1;
+A{4}(1, 4, 8, 1) = 1;
+A{4}(1, 4, 1, 2) = 1;        % card 2 chosen but at least one same  feature
+A{4}(1, 4, 2, 2) = 1;
+A{4}(1, 4, 3, 2) = 1;
+A{4}(1, 4, 4, 2) = 1;
+A{4}(1, 4, 5, 2) = 1;
+A{4}(1, 4, 6, 2) = 1;
+A{4}(1, 4, 8, 2) = 1;
+% feedback = correct
+A{4}(2, 4, 2, 1) = 1;        % card 1 chosen and shape=circle, color=blue, num=2
+A{4}(2, 4, 7, 2) = 1;        % card 2 chosen and shape=triangle, color=red, num=1
+% Likelihood mapping in the generative model
+for i=1:Ng
+    a{i}=A{i}*200;
 end
-U(:, :, Nf) = [1 2];
-% choice state controllable by actions card1 and card2
-% % card 1 features not controllable
-% U(:,:,1) = [1 1];
-% U(:,:,2) = [1 1];
-% U(:,:,3) = [1 1];
-% % card 2 features not controllable
-% U(:,:,4) = [1 1 1];
-% U(:,:,5) = [1 1 1];
-% U(:,:,6) = [1 1 1];
-% % card 3 features not controllable
-% U(:,:,7) = [1 1 1];
-% U(:,:,8) = [1 1 1];
-% U(:,:,9) = [1 1 1];
-% % choice state controllable by actions card1 and card2
-% U(:,:,10) = [1 2 2];
-% % equivalent way of defining U, per actions and not state factors
-% U(:, 1, :) = [10 10 10 10 10 10 10 10 10 10]';
-% U(:, 2, :) = [10 10 10 10 10 10 10 10 10 10]';
-
-% TRANSITION MATRICES
-% ------------------------------------------------
-% card features do not change within a trial
-for f=1:Nf-1
-    B{f}(:, :) = eye(Ns(f));
-end
-% only last state factor (choice state) is controllable
-B{Nf} = zeros(Ns(Nf), Ns(Nf), Nu);
-% choice state
-B{10}(1, 1, 1) = 1;
-B{10}(1, 2, 1) = 1;
-B{10}(1, 3, 1) = 1;
-B{10}(2, 1, 2) = 1;
-B{10}(2, 2, 2) = 1;
-B{10}(2, 3, 2) = 1;
-
+a{4}(1, :, :, 1) = 0.25;
+a{4}(2, :, :, 1) = 0.25;
+a{4}(1, :, :, 2) = 0.25;
+a{4}(2, :, :, 2) = 0.25;
 
 
 % PREFERRED OUTCOMES
 % ------------------------------------------
 la = 1;
 rs = 4;
-C{1}(:,:) =    [0  -la; % Incorrect
+for i=1:Ng-1
+    C{i}(:,:) = [0 0]';
+end
+C{4}(:,:) =    [0  -la; % Incorrect
                 0 rs;  % Correct
                 0  0]; % Null
 
@@ -177,23 +229,26 @@ mdp.a = a; mdp.a_0 = mdp.a;
 % mdp.o = o;
 
 % We can add labels to states, outcomes, and actions for subsequent plotting:
-label.factor{1}   = 'card 1 shape';   label.name{1}    = {'circle','triangle'};
-label.factor{2}   = 'card 1 color';     label.name{2}    = {'red', 'blue'};
-label.factor{3}   = 'card 1 num';   label.name{3}    = {'1','2'};
+label.factor{1}   = 'rule';     
+label.name{1}    = {'shape', 'color', 'number', 'exclusion'};
+label.factor{2}   = 'conjunctions of target card';   
+label.name{2}    = {'circle x blue x 1, circle x blue x 2';
+                    'circle x red x 1, circle x red x 2';
+                    'triangle x blue x 1, triangle x blue x 2';
+                    'triangle x red x 1, triangle x red x 2'};
+label.factor{3}   = 'choice';
+label.name{3}    = {'card 1','card 2', 'undecided'};
 
-label.factor{4}   = 'card 2 shape';   label.name{4}    = {'circle','triangle'};
-label.factor{5}   = 'card 2 color';     label.name{5}    = {'red', 'blue'};
-label.factor{6}   = 'card 2 num';   label.name{6}    = {'1','2'};
+label.modality{1}   = 'shape';
+label.outcome{1}    = {'circle', 'triangle'};
+label.modality{2}   = 'color';
+label.outcome{2}    = {'blue', 'red'};
+label.modality{3}   = 'number';
+label.outcome{3}    = {'1', '2'};
+label.modality{4}   = 'feedback';
+label.outcome{4}    = {'incorrect', 'correct', 'null'};
 
-label.factor{7}   = 'card 3 shape';   label.name{7}    = {'circle','triangle'};
-label.factor{8}   = 'card 3 color';     label.name{8}    = {'red', 'blue'};
-label.factor{9}   = 'card 3 num';   label.name{9}    = {'1','2'};
-
-label.factor{10}   = 'choice state';   label.name{10}    = {'card1', 'card2', 'undecided'};
-
-label.modality{1}   = 'feedback';     label.outcome{1}    = {'incorrect', 'correct', 'null'};
-
-for i = 1:10
+for i = 1:Nf
     label.action{i} = {'card1', 'card2'};
 end
 mdp.label = label;
@@ -214,24 +269,22 @@ MDP = mdp;
 
 [MDP(1:N)] = deal(MDP);
 
-% trial 2
-% MDP(2).D{7} = [0, 1]'; % triangle
-% MDP(2).D{8} = [0, 1]'; % blue
-% MDP(2).D{9} = [1, 0]'; % 1
-% % trial 3
-% MDP(3).D{7} = [0, 1]'; % triangle
-% MDP(3).D{8} = [1, 0]'; % red
-% MDP(3).D{9} = [0, 1]'; % 2
-% % trial 4
-% MDP(4).D{7} = [1, 0]'; % circle
-% MDP(4).D{8} = [1, 0]'; % red
-% MDP(4).D{9} = [1, 0]'; % 1
+% Changing features
+for i=2:N
+    MDP(i).D{2} = zeros(Ns(2), 1);
+    rand_idx = randi([1, 8]);
+    MDP(i).D{2}(rand_idx) = 1;
+end
 
 
 MDP = spm_MDP_VB_X_tutorial(MDP);
 
+f_act = 3;
+f_state = 1;
+mod_out = 4;
+timestep_of_trial_to_plot = 1;
 
-WSCT_plot(MDP);
+WSCT_plot(MDP, f_act, f_state, mod_out, timestep_of_trial_to_plot);
 
 
 

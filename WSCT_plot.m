@@ -1,6 +1,9 @@
-function WSCT_plot(MDP)
+function WSCT_plot(MDP, f_act, f_state, mod_out, timestep_of_trial_to_plot)
+% f_act: state factor for which to display sampled actions
+% mod_out : outcome modality for which to display outcomes
 
 spm_figure('GetWin','WSCT'); clf    % display behavior
+
 
 if iscell(MDP(1).X)
     Nf = numel(MDP(1).B);                 % number of hidden state factors
@@ -14,9 +17,7 @@ end
 Nt    = length(MDP);               % number of trials
 Ne    = size(MDP(1).V,1) + 1;      % number of epochs per trial
 Np    = size(MDP(1).V,2) + 1;      % number of policies
-f_act = 10;                        % state factor for which to display sampled actions
-mod_out = 1;                       % outcome modality for which to display outcomes
-timestep_of_trial_to_plot = 1;
+
 
 for i = 1:Nt
     % assemble expectations of hidden states and outcomes
@@ -36,13 +37,13 @@ for i = 1:Nt
     act(:,i) = MDP(i).u(f_act,timestep_of_trial_to_plot);
     pref(:, i) = MDP(i).C{mod_out}(:, timestep_of_trial_to_plot);
     outcomes(:, i) = MDP(i).o(mod_out, timestep_of_trial_to_plot+1);
-    posterior_states(:, i) = MDP(i).X{f_act}(:, timestep_of_trial_to_plot+1);
-    states(:, i) = MDP(i).s(f_act, timestep_of_trial_to_plot+1);
+    posterior_states(:, i) = MDP(i).X{f_state}(:, timestep_of_trial_to_plot+1);
+    states(:, i) = MDP(i).s(f_state, timestep_of_trial_to_plot+1);
     dn(:,i) = mean(MDP(i).dn,2);
-    %wn(:,i) = mean(MDP(i).wn,2);
     wn(:,i) = MDP(i).wn;
 
 end
+
 
 % Actions
 %--------------------------------------------------------------------------
@@ -67,8 +68,8 @@ try
 end
 title('Action selection and action probabilities')
 xlabel('Trial'),ylabel('Action'), hold off
-yticks([1, 2])
-yticklabels({'Card 1', 'Card 2'})
+yticks(1:numel(MDP(1).label.action{f_act}))
+yticklabels(MDP(1).label.action{f_act})
 
 %============================================
 
@@ -87,9 +88,9 @@ plot(outcomes,col{1},'MarkerSize',MarkerSize)
 
 
 title('Outcomes and outcome probabilities')
-xlabel('Trial'),ylabel('Outcomes'), hold off
-yticks([1, 2, 3])
-yticklabels({'Incorrect', 'Correct', 'Null'})
+xlabel('Trial'),ylabel(MDP(1).label.modality{mod_out}), hold off
+yticks(1:numel(MDP(1).label.modality{mod_out}))
+yticklabels(MDP(1).label.outcome{mod_out})
 
 
 % posterior beliefs about hidden states
@@ -104,24 +105,28 @@ end
 image(64*(1 - posterior_states)),  hold on
 
 plot(states,col{1},'MarkerSize',MarkerSize)
+title('Posterior beliefs (rule)')
+xlabel('Trial'),ylabel(MDP(1).label.factor{f_state}), hold off
+yticks(1:numel(MDP(1).label.name{f_state}))
+yticklabels(MDP(1).label.name{f_state})
 
 
-title('Posterior beliefs (choice state factor)')
-xlabel('Trial'),ylabel('States'), hold off
-yticks([1, 2, 3])
-yticklabels({'Card 1', 'Card 2', 'Undecided'})
-
-
-% expected precision
+% precision
 %--------------------------------------------------------------------------
 subplot(7,1,4)
-if size(dn,2) > 1
-    plot(dn,'r:'),   hold on, plot(wn,'c','LineWidth',2), hold off
+w = dn;
+w   = spm_vec(w);
+if Nt > 8
+    fill([1 1:length(w) length(w)],[0; w.*(w > 0); 0],'k'), hold on
+    fill([1 1:length(w) length(w)],[0; w.*(w < 0); 0],'k'), hold off
 else
-    bar(dn,1.1,'k'), hold on, plot(wn,'c','LineWidth',2), hold off
+    bar(w,1.1,'k')
 end
-title('Expected precision (dopamine)')
-xlabel('updates'), ylabel('precision'), spm_axis tight, box off
+title('Precision (dopamine)')
+ylabel('Precision'), spm_axis tight, box off
+YLim = get(gca,'YLim'); YLim(1) = 0; set(gca,'YLim',YLim);
+set(gca,'XTickLabel',{});
+
 
 
 % changes in expected precision
@@ -138,9 +143,48 @@ YLim = get(gca,'YLim'); YLim(1) = 0; set(gca,'YLim',YLim);
 
 % free energy & confidence
 % ------------------------------------------------------------------
-[F,Fu] = spm_MDP_F(MDP);
-subplot(7,1,6), plot(1:Nt,F),  xlabel('trial'), spm_axis tight, title('Free energy','Fontsize',16)
-subplot(7,1,7), plot(1:Nt,Fu), xlabel('trial'), spm_axis tight, title('Confidence','Fontsize',16)
+[F,Fu,Fs,Fq,Fg,Fa] = spm_MDP_F(MDP);
+subplot(7,1,6), plot(1:Nt,F),  xlabel('trial'), spm_axis tight, title('Free energy')
+subplot(7,1,7), plot(1:Nt,Fu), xlabel('trial'), spm_axis tight, title('Confidence')
+%subplot(8,1,8), plot(1:Nt,Fa), xlabel('trial'), spm_axis tight, title('Free energy of A parameters')
+
+
+spm_figure('Matrices','WSCT'); clf    % display behavior
+
+% Learned likelihood matrix a
+% --------------------------------------------------------------------
+trial_to_plot = 4;
+a = MDP(trial_to_plot).a;
+subplot(2, 1, 1)
+for i = 1:4                                                                                                                        
+    for j= 1:8
+        a{i,j} = squeeze(a{4}(:,i,j,3));
+        a{i,j} = a{i,j}*diag(1./sum(a{i,j}));
+    end
+end
+a = spm_cat(a);
+imagesc(a);
+title( 'Sample: left - center - right', 'FontSize',16)
+ylabel('Rule: left - center - right','FontSize',14)
+xlabel('Correct color', 'FontSize',14)
+set(gca,'XTick',1:9)
+set(gca,'YTick',1:12)
+set(gca,'XTicklabel',repmat(['r','g','b'],[1 3])')
+set(gca,'YTicklabel',repmat(['r','g','b',' '],[1 3])')
+axis image
+
+
+% Learned likelihood matrix
+% --------------------------------------------------------------------
+% subplot(8,1,8)
+% Z = MDP(Nt).a{1}(:, 1, 1, 1, 2, 2, 2, 1, 2, 2, :);
+% image(64*(1 - Z))
+% title('Likelihood matrix')
+% ylabel('feedback')
+% yticks([1, 2, 3])
+% yticklabels({'incorrect', 'correct', 'null'})
+% xlabel('choice state')
+
 
 % % posterior beliefs about hidden states
 % figure;
