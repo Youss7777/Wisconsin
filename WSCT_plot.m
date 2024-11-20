@@ -105,7 +105,7 @@ end
 image(64*(1 - posterior_states)),  hold on
 
 plot(states,col{1},'MarkerSize',MarkerSize)
-title('Posterior beliefs (rule)')
+title('Posterior beliefs')
 xlabel('Trial'),ylabel(MDP(1).label.factor{f_state}), hold off
 yticks(1:numel(MDP(1).label.name{f_state}))
 yticklabels(MDP(1).label.name{f_state})
@@ -149,29 +149,29 @@ subplot(7,1,7), plot(1:Nt,Fu), xlabel('trial'), spm_axis tight, title('Confidenc
 %subplot(8,1,8), plot(1:Nt,Fa), xlabel('trial'), spm_axis tight, title('Free energy of A parameters')
 
 
-spm_figure('Matrices','WSCT'); clf    % display behavior
+% spm_figure('Matrices','WSCT'); clf    % display behavior
 
 % Learned likelihood matrix a
 % --------------------------------------------------------------------
-trial_to_plot = 4;
-a = MDP(trial_to_plot).a;
-subplot(2, 1, 1)
-for i = 1:4                                                                                                                        
-    for j= 1:8
-        a{i,j} = squeeze(a{4}(:,i,j,3));
-        a{i,j} = a{i,j}*diag(1./sum(a{i,j}));
-    end
-end
-a = spm_cat(a);
-imagesc(a);
-title( 'Sample: left - center - right', 'FontSize',16)
-ylabel('Rule: left - center - right','FontSize',14)
-xlabel('Correct color', 'FontSize',14)
-set(gca,'XTick',1:9)
-set(gca,'YTick',1:12)
-set(gca,'XTicklabel',repmat(['r','g','b'],[1 3])')
-set(gca,'YTicklabel',repmat(['r','g','b',' '],[1 3])')
-axis image
+% trial_to_plot = 4;
+% a = MDP(trial_to_plot).a;
+% subplot(2, 1, 1)
+% for i = 1:4                                                                                                                        
+%     for j= 1:8
+%         a{i,j} = squeeze(a{4}(:,i,j,3));
+%         a{i,j} = a{i,j}*diag(1./sum(a{i,j}));
+%     end
+% end
+% a = spm_cat(a);
+% imagesc(a);
+% title( 'Sample: left - center - right', 'FontSize',16)
+% ylabel('Rule: left - center - right','FontSize',14)
+% xlabel('Correct color', 'FontSize',14)
+% set(gca,'XTick',1:9)
+% set(gca,'YTick',1:12)
+% set(gca,'XTicklabel',repmat(['r','g','b'],[1 3])')
+% set(gca,'YTicklabel',repmat(['r','g','b',' '],[1 3])')
+% axis image
 
 
 % Learned likelihood matrix
