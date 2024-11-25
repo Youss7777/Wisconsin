@@ -44,7 +44,7 @@ D{6} = [1, 0, 0, 0, 0]';      % choice = wait
 d{1} = [0.25, 0.25, 0.25, 0.25]';
 d{2} = [0.25, 0.25, 0.25, 0.25]';
 d{3} = [0.25, 0.25, 0.25, 0.25]';
-d{4} = [0.25, 0.25, 0.25, 0.25]';       % prior on the rule
+d{4} = [1, 1, 1, 0.1]';       % low prior for the exclusion rule
 d{5} = [1, 0, 0]';
 d{6} = [1, 0, 0, 0, 0]';
 
@@ -170,16 +170,6 @@ A{5}(3, :, :, :, :, :, 1) = 1;              % wait choice
 A{5}(3, :, :, :, :, 1, :) = 1;              % viewing sequence
 A{5}(3, :, :, :, :, 2, :) = 1;              % response sequence
 
-
-% Likelihood mapping in the generative model
-for i=1:Ng
-    a{i}=A{i}*200;
-end
-% a{4}(1, :, :, :, :, :, 1) = 0.25;
-% a{4}(2, :, :, :, :, :, 1) = 0.25;
-% a{4}(1, :, :, :, :, :, 2) = 0.25;
-% a{4}(2, :, :, :, :, :, 2) = 0.25;
-
 % PREFERRED OUTCOMES
 % ------------------------------------------
 la = 1;
@@ -211,8 +201,8 @@ mdp.B = B;                    % transition probabilities
 mdp.C = C;                    % preferred states
 mdp.D = D;                    % priors over initial states
 
-mdp.a = a; mdp.a_0 = mdp.a;
-mdp.d = d; mdp.d_0 = mdp.d;   % enable learning priors over initial states
+% mdp.a = a; mdp.a_0 = mdp.a;
+mdp.d = d; mdp.d_0 = mdp.d; mdp.d0 = mdp.d_0;    % enable learning priors over initial states
 mdp.eta = eta;                % learning rate
 mdp.omega = omega;            % forgetting rate
 mdp.alpha = alpha;            % action precision
@@ -242,7 +232,7 @@ label.outcome{3}    = {'1', '2', '3', '4'};
 label.modality{4}   = 'choice';
 label.outcome{4}    = {'wait', 'card 1','card 2', 'card 3', 'card 4'};
 label.modality{5}   = 'feedback';
-label.outcome{5}    = {'incorrect', 'correct', 'null'};
+label.outcome{5}    = {'incorrect', 'correct', 'undecided'};
 for i = 1:Nf
     label.action{i} = {'wait', 'card1', 'card2', 'card3', 'card4'};
 end
@@ -257,16 +247,14 @@ clear rs % We clear these so we can re-specify them in later simulations
 
 
 % Multiple trials simulation
-N = 30; % number of trials
+N1 = 15; % number of trials
 
 MDP = mdp;
 
-
-
-[MDP(1:N)] = deal(MDP);
+[MDP(1:N1)] = deal(MDP);
 
 % Changing features
-for i=2:N
+for i=2:N1
     for feature=1:3
         MDP(i).D{feature} = zeros(Ns(1), 1);
         rand_idx = randi([1, 4]);
@@ -280,13 +268,31 @@ end
 
 MDP = spm_MDP_VB_X_tutorial(MDP);
 
+% Model reduction
+MDP2 = MDP(end);
+[sd, rd] = WSCT_prune(MDP(end).d{4}, MDP(1).d_0{4}, 8);
+MDP2.d{4} = sd;
+MDP2.d_0{4} = rd;
+
+N2 = 20;
+[MDP2(1:N2)] = deal(MDP2);
+
+
+MDP2 = spm_MDP_VB_X_tutorial(MDP2);
+
+for i = 1:N1-1
+    SIM(i) = MDP(i);
+end
+for i = 1:N2
+    SIM(i+N1-1) = MDP2(i);
+end
 
 f_act = Nf;
 f_state = 4;
 mod_out = Ng;
 timestep_to_plot = 2;
 
-WSCT_plot(MDP, f_act, f_state, mod_out, timestep_to_plot);
+WSCT_plot(SIM, f_act, f_state, mod_out, timestep_to_plot);
 
 
 
