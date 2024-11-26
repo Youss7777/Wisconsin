@@ -2,6 +2,9 @@
 
 clear all
 
+
+rng('default')
+
 % Number of time steps per trial
 T = 3;
 % Card 1
@@ -44,7 +47,7 @@ D{6} = [1, 0, 0, 0, 0]';      % choice = wait
 d{1} = [0.25, 0.25, 0.25, 0.25]';
 d{2} = [0.25, 0.25, 0.25, 0.25]';
 d{3} = [0.25, 0.25, 0.25, 0.25]';
-d{4} = [1, 1, 1, 0.1]';       % low prior for the exclusion rule
+d{4} = [1, 1, 1, 0.05]';       % low prior for the exclusion rule
 d{5} = [1, 0, 0]';
 d{6} = [1, 0, 0, 0, 0]';
 
@@ -202,7 +205,7 @@ mdp.C = C;                    % preferred states
 mdp.D = D;                    % priors over initial states
 
 % mdp.a = a; mdp.a_0 = mdp.a;
-mdp.d = d; mdp.d_0 = mdp.d; mdp.d0 = mdp.d_0;    % enable learning priors over initial states
+mdp.d = d; mdp.d0 = mdp.d; mdp.d_0 = mdp.d0;   % enable learning priors over initial states
 mdp.eta = eta;                % learning rate
 mdp.omega = omega;            % forgetting rate
 mdp.alpha = alpha;            % action precision
@@ -247,53 +250,69 @@ clear rs % We clear these so we can re-specify them in later simulations
 
 
 % Multiple trials simulation
-N1 = 15; % number of trials
+N = 60; % number of trials
 
 MDP = mdp;
 
-[MDP(1:N1)] = deal(MDP);
+[MDP(1:N)] = deal(MDP);
 
 % Changing features
-for i=2:N1
+for i=2:N
     for feature=1:3
         MDP(i).D{feature} = zeros(Ns(1), 1);
         rand_idx = randi([1, 4]);
         MDP(i).D{feature}(rand_idx) = 1;
     end
 end
-% % Changing rule
-% for i=10:20
-%     MDP(i).D{4} = [0 0 1 0]';    % rule = number
-% end
-
-MDP = spm_MDP_VB_X_tutorial(MDP);
-
-% Model reduction
-MDP2 = MDP(end);
-[sd, rd] = WSCT_prune(MDP(end).d{4}, MDP(1).d_0{4}, 8);
-MDP2.d{4} = sd;
-MDP2.d_0{4} = rd;
-
-N2 = 20;
-[MDP2(1:N2)] = deal(MDP2);
 
 
-MDP2 = spm_MDP_VB_X_tutorial(MDP2);
 
-for i = 1:N1-1
-    SIM(i) = MDP(i);
-end
-for i = 1:N2
-    SIM(i+N1-1) = MDP2(i);
-end
+BMR1.f = 4;
+BMR1.x = 1;
+BMR1.trial = 25;
+OPTIONS.BMR1 = BMR1;
+MDP = spm_MDP_VB_X_tutorial(MDP, OPTIONS);
+
 
 f_act = Nf;
 f_state = 4;
 mod_out = Ng;
 timestep_to_plot = 2;
 
-WSCT_plot(SIM, f_act, f_state, mod_out, timestep_to_plot);
+WSCT_plot(MDP, f_act, f_state, mod_out, timestep_to_plot);
 
+
+% % Changing rule
+% for i=10:20
+%     MDP(i).D{4} = [0 0 1 0]';    % rule = number
+% end
+
+% % Model reduction
+% MDP2 = MDP(end);
+% [sd, rd] = WSCT_prune(MDP(end).d{4}, MDP(1).d_0{4}, 8);
+% MDP2.d{4} = sd;
+% MDP2.d0{4} = rd;
+% 
+% N2 = 20;
+% [MDP2(1:N2)] = deal(MDP2);
+% 
+% for i=1:N2
+%     for feature=1:3
+%         MDP2(i).D{feature} = zeros(Ns(1), 1);
+%         rand_idx = randi([1, 4]);
+%         MDP2(i).D{feature}(rand_idx) = 1;
+%     end
+% end
+% 
+% 
+% MDP2 = spm_MDP_VB_X_tutorial(MDP2);
+% 
+% for i = 1:N1-1
+%     SIM(i) = MDP(i);
+% end
+% for i = 1:N2
+%     SIM(i+N1-1) = MDP2(i);
+% end
 
 
 

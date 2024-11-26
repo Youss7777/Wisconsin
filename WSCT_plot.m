@@ -1,8 +1,8 @@
-function WSCT_plot(MDP, f_act, f_state, mod_out, timestep_of_trial_to_plot)
+function WSCT_plot(MDP, f_act, f_state, mod_out, timestep_to_plot)
 % f_act: state factor for which to display sampled actions
 % mod_out : outcome modality for which to display outcomes
 
-spm_figure('GetWin','WSCT'); clf    % display behavior
+spm_figure('GetWin'); clf    % display behavior
 
 
 if iscell(MDP(1).X)
@@ -33,12 +33,12 @@ for i = 1:Nt
             end
         end
     end
-    act_prob(:,i) = MDP(i).P(:,:,:,:,:,:,:,:,:,:,timestep_of_trial_to_plot);
-    act(:,i) = MDP(i).u(f_act,timestep_of_trial_to_plot);
-    pref(:, i) = MDP(i).C{mod_out}(:, timestep_of_trial_to_plot);
-    outcomes(:, i) = MDP(i).o(mod_out, timestep_of_trial_to_plot+1);
-    posterior_states(:, i) = MDP(i).X{f_state}(:, timestep_of_trial_to_plot+1);
-    states(:, i) = MDP(i).s(f_state, timestep_of_trial_to_plot+1);
+    act_prob(:,i) = MDP(i).P(:, :, :, :, :, :, timestep_to_plot);
+    act(:,i) = MDP(i).u(f_act,timestep_to_plot);
+    pref(:, i) = MDP(i).C{mod_out}(:, timestep_to_plot);
+    outcomes(:, i) = MDP(i).o(mod_out, timestep_to_plot+1);
+    posterior_states(:, i) = MDP(i).X{f_state}(:, timestep_to_plot+1);
+    states(:, i) = MDP(i).s(f_state, timestep_to_plot+1);
     dn(:,i) = mean(MDP(i).dn,2);
     wn(:,i) = MDP(i).wn;
 
@@ -48,7 +48,7 @@ end
 % Actions
 %--------------------------------------------------------------------------
 col   = {'r.','g.','b.','c.','m.','k.'};
-subplot(7,1,1)
+subplot(6,1,1)
 if Nt < 64
     MarkerSize = 24;
 else
@@ -75,7 +75,7 @@ yticklabels(MDP(1).label.action{f_act})
 
 % Outcomes and preference
 %--------------------------------------------------------------------------
-subplot(7,1,2)
+subplot(6,1,2)
 if Nt < 64
     MarkerSize = 24;
 else
@@ -95,7 +95,7 @@ yticklabels(MDP(1).label.outcome{mod_out})
 
 % posterior beliefs about hidden states
 %--------------------------------------------------------------------------
-subplot(7,1,3)
+subplot(6,1,3)
 if Nt < 64
     MarkerSize = 24;
 else
@@ -105,7 +105,7 @@ end
 image(64*(1 - posterior_states)),  hold on
 
 plot(states,col{1},'MarkerSize',MarkerSize)
-title('Posterior beliefs')
+title('Hidden states and posterior beliefs')
 xlabel('Trial'),ylabel(MDP(1).label.factor{f_state}), hold off
 yticks(1:numel(MDP(1).label.name{f_state}))
 yticklabels(MDP(1).label.name{f_state})
@@ -113,7 +113,7 @@ yticklabels(MDP(1).label.name{f_state})
 
 % precision
 %--------------------------------------------------------------------------
-subplot(7,1,4)
+subplot(6,1,4)
 w = dn;
 w   = spm_vec(w);
 if Nt > 8
@@ -128,25 +128,12 @@ YLim = get(gca,'YLim'); YLim(1) = 0; set(gca,'YLim',YLim);
 set(gca,'XTickLabel',{});
 
 
-
-% changes in expected precision
-% ------------------------------------------------------------------
-subplot(7,1,5)
-dn    = spm_vec(dn);
-dn    = dn.*(dn > 0);
-dn    = dn + (dn + 1/16).*rand(size(dn))/8;
-bar(dn,1,'k'), title('Dopamine responses','FontSize',16)
-xlabel('time (updates)','FontSize',12)
-ylabel('change in precision','FontSize',12), spm_axis tight, box off
-YLim = get(gca,'YLim'); YLim(1) = 0; set(gca,'YLim',YLim);
-
-
 % free energy & confidence
 % ------------------------------------------------------------------
-[F,Fu,Fs,Fq,Fg,Fa] = spm_MDP_F(MDP);
-subplot(7,1,6), plot(1:Nt,F),  xlabel('trial'), spm_axis tight, title('Free energy')
-subplot(7,1,7), plot(1:Nt,Fu), xlabel('trial'), spm_axis tight, title('Confidence')
-%subplot(8,1,8), plot(1:Nt,Fa), xlabel('trial'), spm_axis tight, title('Free energy of A parameters')
+[F,Fu,~,~,~,~] = spm_MDP_F(MDP);
+subplot(6,1,5), plot(1:Nt,F),  xlabel('trial'), spm_axis tight, title('Free energy')
+subplot(6,1,6), plot(1:Nt,Fu), xlabel('trial'), spm_axis tight, title('Confidence')
+% subplot(5,1,5), plot(1:Nt,Fa(mod_out:mod_out:end)), xlabel('trial'), spm_axis tight, title('Free energy of A{'+string(mod_out)+'} parameters')
 
 
 % spm_figure('Matrices','WSCT'); clf    % display behavior
@@ -185,6 +172,17 @@ subplot(7,1,7), plot(1:Nt,Fu), xlabel('trial'), spm_axis tight, title('Confidenc
 % yticklabels({'incorrect', 'correct', 'null'})
 % xlabel('choice state')
 
+
+% changes in expected precision
+% ------------------------------------------------------------------
+% subplot(3,1,2)
+% dn    = spm_vec(dn);
+% dn    = dn.*(dn > 0);
+% dn    = dn + (dn + 1/16).*rand(size(dn))/8;
+% bar(dn,1,'k'), title('Dopamine responses')
+% xlabel('time (updates)','FontSize',12)
+% ylabel('change in precision','FontSize',12), spm_axis tight, box off
+% YLim = get(gca,'YLim'); YLim(1) = 0; set(gca,'YLim',YLim);
 
 % % posterior beliefs about hidden states
 % figure;

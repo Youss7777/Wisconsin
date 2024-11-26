@@ -1,4 +1,4 @@
-function [sD_fin,rD_fin] = WSCT_prune(qD,pD,x)
+function [MDP] = WSCT_prune(MDP, BMR)
 % FORMDT [sD,rD] = WSCT_prune(qD,pD,f,x,T,m)
 % qD - posterior expectations
 % pD - prior expectations
@@ -10,6 +10,11 @@ function [sD_fin,rD_fin] = WSCT_prune(qD,pD,x)
 % rD - reduced prior expectations
 %__________________________________________________________________________
 
+f = BMR.f;
+x = BMR.x;
+
+qD = MDP.d{f};
+pD = MDP.d_0{f};
 
 
 % model space: additional concentration parameters (i.e., precision)
@@ -44,5 +49,7 @@ end
 sD_fin = qD + rD_fin - pD;
 
 
-return
+MDP.d{f}  = sD_fin;
+MDP.d0{f} = rD_fin;
+MDP.d_0{f} = rD_fin;
 
