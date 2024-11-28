@@ -71,12 +71,16 @@ D{4} = [0, 0, 0, 1]';         % rule = exclusion
 D{5} = [1, 0, 0]';            % sequence = viewing
 D{6} = [1, 0, 0, 0, 0]';      % choice = wait
 % Prior for initial states in generative model
+pRuleObv = 1.0;
+pRuleExcl = 0.5;
 d{1} = [0.25, 0.25, 0.25, 0.25]';
 d{2} = [0.25, 0.25, 0.25, 0.25]';
 d{3} = [0.25, 0.25, 0.25, 0.25]';
-d{4} = [1, 1, 1, 0.5]';       % low prior for the exclusion rule
+d{4} = [pRuleObv, pRuleObv, pRuleObv, pRuleExcl]';       % low prior for the exclusion rule
 d{5} = [1, 0, 0]';
 d{6} = [1, 0, 0, 0, 0]';
+
+
 
 % TRANSITION MATRICES
 % ----------------------------------------------------------
@@ -240,6 +244,8 @@ mdp.alpha = alpha;            % action precision
 mdp.beta = beta;              % expected precision of expected free energy over policies
 mdp.loss = loss;
 mdp.reward = reward;
+mdp.pRuleObv = pRuleObv;
+mdp.pRuleExcl = pRuleExcl;
 
 % We can add labels to states, outcomes, and actions for subsequent plotting:
 label.factor{1}   = 'shape';
@@ -271,38 +277,48 @@ end
 mdp.label = label;
 
 
-% Multiple trials simulation
-N = 81; % number of trials
+% MODE COMPARISON: WITH REDUCTION (BMR) and WITHOUT (no_BMR) 
+%================================================================
 
+
+% Participant infos
+participant = 381;
+N = 99;
+isBMR = 'BMR';
+% Model reduction at a specific trial
+BMR1.f = 4;
+BMR1.x = 1;
+BMR1.trial = 81;
+OPTIONS.BMR1 = BMR1;
+% Structure
 MDP = mdp;
-
 [MDP(1:N)] = deal(MDP);
+MDP = WSCT_get_data_381(MDP);
 
 % Draw new source card randomly from deck
-for i=1:N
-    rand_idx = randi([1, size(deck, 2)]);
-    for feature=1:3
-        MDP(i).D{feature} = deck{rand_idx}{feature};
-    end
-end
-
-
-% % Model reduction at a specific trial
-% BMR1.f = 4;
-% BMR1.x = 1;
-% BMR1.trial = 15;
-% OPTIONS.BMR1 = BMR1;
+% for i=1:N
+%     rand_idx = randi([1, size(deck, 2)]);
+%     for feature=1:3
+%         MDP(i).D{feature} = deck{rand_idx}{feature};
+%     end
+% end
 
 
 % MODEL INVERSION
 %==============================================================
 DCM.MDP = mdp;
-MDP = WSCT_get_empirical_obs_act(MDP);
 DCM.U = {MDP.o};
 DCM.Y = {MDP.u};
-DCM.field = {'alpha', 'eta', 'reward', 'loss'};
+DCM.field = {'alpha', 'eta', 'reward', 'loss', 'beta', 'pRuleObv', 'pRuleExcl'};
 
+disp('Starting...')
 DCM = WSCT_Estimate_parameters(DCM); % Run the parameter estimation function
+disp('Finished!')
+
+disp('Saving DCM...')
+filename = ['WSCT_DCM_' num2str(participant) '_' isBMR '.mat'];
+save(filename, 'DCM');
+disp('DCM saved!')
 
 subplot(2,2,3)
 xticklabels(DCM.field),xlabel('Parameter')
@@ -326,7 +342,7 @@ end
 figure, set(gcf,'color','white')
 subplot(2,1,1),hold on
 title('Means')
-bar(prior, 0.5, 'FaceColor',[.5,.5,.5]), bar(posterior,1, 0.5,'k')
+bar(prior,'FaceColor',[.5,.5,.5]),bar(posterior,0.5,'k')
 xlim([0,length(prior)+1]),set(gca, 'XTick', 1:length(prior)),set(gca, 'XTickLabel', DCM.field)
 legend({'Prior','Posterior'})
 hold off
