@@ -44,9 +44,8 @@ ALL = false;
 
 % Here we specify prior expectations (for parameter means and variances)
 %--------------------------------------------------------------------------
-prior_variance = 1/4; % smaller values will lead to a greater complexity 
+prior_variance = 1/2; % smaller values will lead to a greater complexity 
                       % penalty (posteriors will remain closer to priors)
-prior_mean = log(16); % in log-space (to keep positive)                     
 
 for i = 1:length(DCM.field)
     field = DCM.field{i};
@@ -61,15 +60,15 @@ for i = 1:length(DCM.field)
         pC{i,i}    = diag(param);
     else
         if strcmp(field,'alpha')
-            pE.(field) = prior_mean;          % in log-space (to keep positive)
+            pE.(field) = log(16);          % in log-space (to keep positive)
             pC{i,i}    = prior_variance;
         elseif strcmp(field,'beta')
             pE.(field) = log(1);           % in log-space (to keep positive)
             pC{i,i}    = prior_variance;
-        elseif strcmp(field,'la')
+        elseif strcmp(field,'loss')
             pE.(field) = log(1);           % in log-space (to keep positive)
             pC{i,i}    = prior_variance;
-        elseif strcmp(field,'rs')
+        elseif strcmp(field,'reward')
             pE.(field) = log(5);           % in log-space (to keep positive)
             pC{i,i}    = prior_variance;
         elseif strcmp(field,'eta')
@@ -77,6 +76,12 @@ for i = 1:length(DCM.field)
             pC{i,i}    = prior_variance;
         elseif strcmp(field,'omega')
             pE.(field) = log(0.5/(1-0.5)); % in logit-space - bounded between 0 and 1
+            pC{i,i}    = prior_variance;
+        elseif strcmp(field, 'pRuleObv')
+            pE.(field) = log(3);
+            pC{i,i}    = prior_variance;
+        elseif strcmp(field, 'pRuleExcl')
+            pE.(field) = log(1);
             pC{i,i}    = prior_variance;
         else
             pE.(field) = 0;                % if it can take any negative or positive value
@@ -91,7 +96,7 @@ pC      = spm_cat(pC);
 %--------------------------------------------------------------------------
 M.L     = @(P,M,U,Y)spm_mdp_L(P,M,U,Y);  % log-likelihood function
 M.pE    = pE;                            % prior means (parameters)
-M.pC    = pC;                            % prior variance (parameters)
+M.pC    = pC;                             % prior variance (parameters)
 M.mdp   = DCM.MDP;                       % MDP structure
 
 % Variational Laplace
@@ -146,6 +151,10 @@ for i = 1:length(field)
         mdp.(field{i}) = 1/(1+exp(-P.(field{i})));
     elseif strcmp(field{i},'omega')
         mdp.(field{i}) = 1/(1+exp(-P.(field{i})));
+    elseif strcmp(field{i}, 'pRuleObv')
+        mdp.(field{i}) = exp(P.(field{i}));
+    elseif strcmp(field{i}, 'pRuleExcl')
+        mdp.(field{i}) = exp(P.(field{i}));
     else
         mdp.(field{i}) = exp(P.(field{i}));
     end
@@ -165,15 +174,28 @@ elseif isfield(M.pE,'reward')
     mdp.C{5}(2, 2) = mdp.reward;
 end
 
+if isfield(M.pE, 'pRuleObv') && isfield(M.pE, 'pRuleExcl')
+    mdp.d{4}(1:3) = mdp.pRuleObv;
+    mdp.d{4}(4)= mdp.pRuleExcl;
+end
+
 j = 1:numel(U); % observations for each trial (U = DCM.U = outcomes)
 n = numel(j);   % number of trials
 
 [MDP(1:n)] = deal(mdp);  % Create MDP with number of specified trials
 [MDP.o]    = deal(U{j}); % Add observations in each trial
 controllable_factor = 5;
+
+% Model reduction at a specific trial
+BMR1.f = 4;
+BMR1.x = 1;
+BMR1.trial = 81;
+OPTIONS.BMR1 = BMR1;
+
 % solve MDP and accumulate log-likelihood
 %--------------------------------------------------------------------------
-MDP   = spm_MDP_VB_X_tutorial(MDP); % run model with possible parameter values
+MDP   = spm_MDP_VB_X_tutorial(MDP, OPTIONS); % run model with possible parameter values
+
 
 L     = 0; % start (log) probability of actions given the model at 0
 
