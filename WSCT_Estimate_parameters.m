@@ -5,10 +5,11 @@ function [DCM] = WSCT_Estimate_parameters(DCM)
 %
 % Expects:
 %--------------------------------------------------------------------------
-% DCM.MDP   % MDP structure specifying a generative model
-% DCM.field % parameter (field) names to optimise
-% DCM.U     % cell array of outcomes (stimuli)
-% DCM.Y     % cell array of responses (action)
+% DCM.MDP       % MDP structure specifying a generative model
+% DCM.OPTIONS   % OPTIONS structure (e.g. for BMR)
+% DCM.field     % parameter (field) names to optimise
+% DCM.U         % cell array of outcomes (stimuli)
+% DCM.Y         % cell array of responses (action)
 %
 % Returns:
 %--------------------------------------------------------------------------
@@ -44,8 +45,18 @@ ALL = false;
 
 % Here we specify prior expectations (for parameter means and variances)
 %--------------------------------------------------------------------------
-prior_variance = 1/2; % smaller values will lead to a greater complexity 
+prior_variance = 1/4; % smaller values will lead to a greater complexity 
                       % penalty (posteriors will remain closer to priors)
+prior_alpha = 16;
+prior_beta = 1;
+prior_loss = 1;
+prior_reward = 5;
+prior_eta = 0.5;
+prior_omega = 0.5;
+prior_pRuleObv = 3;
+prior_pRuleExcl = 1.2;
+prior_pcount = 8;
+prior_thres = 1;
 
 for i = 1:length(DCM.field)
     field = DCM.field{i};
@@ -60,28 +71,34 @@ for i = 1:length(DCM.field)
         pC{i,i}    = diag(param);
     else
         if strcmp(field,'alpha')
-            pE.(field) = log(16);          % in log-space (to keep positive)
+            pE.(field) = log(prior_alpha);          % in log-space (to keep positive)
             pC{i,i}    = prior_variance;
         elseif strcmp(field,'beta')
-            pE.(field) = log(1);           % in log-space (to keep positive)
+            pE.(field) = log(prior_beta);           % in log-space (to keep positive)
             pC{i,i}    = prior_variance;
         elseif strcmp(field,'loss')
-            pE.(field) = log(1);           % in log-space (to keep positive)
+            pE.(field) = log(prior_loss);           % in log-space (to keep positive)
             pC{i,i}    = prior_variance;
         elseif strcmp(field,'reward')
-            pE.(field) = log(5);           % in log-space (to keep positive)
+            pE.(field) = log(prior_reward);           % in log-space (to keep positive)
             pC{i,i}    = prior_variance;
         elseif strcmp(field,'eta')
-            pE.(field) = log(0.5/(1-0.5)); % in logit-space - bounded between 0 and 1
+            pE.(field) = log(prior_eta/(1-prior_eta)); % in logit-space - bounded between 0 and 1
             pC{i,i}    = prior_variance;
         elseif strcmp(field,'omega')
-            pE.(field) = log(0.5/(1-0.5)); % in logit-space - bounded between 0 and 1
+            pE.(field) = log(prior_omega/(1-prior_omega)); % in logit-space - bounded between 0 and 1
             pC{i,i}    = prior_variance;
         elseif strcmp(field, 'pRuleObv')
-            pE.(field) = log(3);
+            pE.(field) = log(prior_pRuleObv);
             pC{i,i}    = prior_variance;
         elseif strcmp(field, 'pRuleExcl')
-            pE.(field) = log(1);
+            pE.(field) = log(prior_pRuleExcl);
+            pC{i,i}    = prior_variance;
+        elseif strcmp(field, 'pcount')
+            pE.(field) = log(prior_pcount);
+            pC{i,i}    = prior_variance;
+        elseif strcmp(field, 'thres')
+            pE.(field) = log(prior_thres);
             pC{i,i}    = prior_variance;
         else
             pE.(field) = 0;                % if it can take any negative or positive value
@@ -97,7 +114,8 @@ pC      = spm_cat(pC);
 M.L     = @(P,M,U,Y)spm_mdp_L(P,M,U,Y);  % log-likelihood function
 M.pE    = pE;                            % prior means (parameters)
 M.pC    = pC;                             % prior variance (parameters)
-M.mdp   = DCM.MDP;                       % MDP structure
+M.mdp   = DCM.mdp;                       % MDP structure
+M.OPTIONS = DCM.OPTIONS;                % OPTIONS structure
 
 % Variational Laplace
 %--------------------------------------------------------------------------
@@ -109,6 +127,7 @@ DCM.M   = M;  % Generative model
 DCM.Ep  = Ep; % Posterior parameter estimates
 DCM.Cp  = Cp; % Posterior variances and covariances
 DCM.F   = F;  % Free energy of model fit
+
 
 return
 
@@ -133,14 +152,17 @@ function L = spm_mdp_L(P,M,U,Y)
 
 if ~isstruct(P); P = spm_unvec(P,M.pE); end
 
+
 % Here we re-transform parameter values out of log- or logit-space when 
 % inserting them into the model to compute the log-likelihood
 %--------------------------------------------------------------------------
 mdp   = M.mdp;
+OPTIONS = M.OPTIONS;
 field = fieldnames(M.pE);
 for i = 1:length(field)
     if strcmp(field{i},'alpha')
         mdp.(field{i}) = exp(P.(field{i}));
+        disp('alpha: '), disp(mdp.alpha)
     elseif strcmp(field{i},'beta')
         mdp.(field{i}) = exp(P.(field{i}));
     elseif strcmp(field{i},'loss')
@@ -149,12 +171,21 @@ for i = 1:length(field)
         mdp.(field{i}) = exp(P.(field{i}));
     elseif strcmp(field{i},'eta')
         mdp.(field{i}) = 1/(1+exp(-P.(field{i})));
+        disp('eta: '), disp(mdp.eta)
     elseif strcmp(field{i},'omega')
         mdp.(field{i}) = 1/(1+exp(-P.(field{i})));
     elseif strcmp(field{i}, 'pRuleObv')
         mdp.(field{i}) = exp(P.(field{i}));
+        disp('pRuleObv: '), disp(mdp.pRuleObv)
     elseif strcmp(field{i}, 'pRuleExcl')
         mdp.(field{i}) = exp(P.(field{i}));
+        disp('pRuleExcl: '), disp(mdp.pRuleExcl)
+    elseif strcmp(field{i}, 'pcount')
+        OPTIONS.BMR0.(field{i}) = exp(P.(field{i}));
+        disp('pcount: '), disp(OPTIONS.BMR0.pcount)
+    elseif strcmp(field{i}, 'thres')
+        OPTIONS.BMR0.(field{i}) = exp(P.(field{i}));
+        disp('thres: '), disp(OPTIONS.BMR0.thres)
     else
         mdp.(field{i}) = exp(P.(field{i}));
     end
@@ -162,21 +193,31 @@ end
 
 % place MDP in trial structure
 %--------------------------------------------------------------------------
-% la = mdp.la_true;  % true level of loss aversion
-% rs = mdp.rs_true;  % true preference magnitude for winning (higher = more risk-seeking)
 
 if isfield(M.pE,'loss')&&isfield(M.pE,'reward')
-    mdp.C{5}(2, 1) = mdp.loss;
-    mdp.C{5}(2, 2) = mdp.reward;
+    mdp.C{5}(1, 3) = mdp.loss;
+    mdp.C{5}(2, 3) = mdp.reward;
 elseif isfield(M.pE,'loss')
-    mdp.C{5}(2,1) = -mdp.loss;
+    mdp.C{5}(1, 3) = -mdp.loss;
 elseif isfield(M.pE,'reward')
-    mdp.C{5}(2, 2) = mdp.reward;
+    mdp.C{5}(2, 3) = mdp.reward;
 end
 
-if isfield(M.pE, 'pRuleObv') && isfield(M.pE, 'pRuleExcl')
+if isfield(M.pE, 'pRuleObv')
     mdp.d{4}(1:3) = mdp.pRuleObv;
+    mdp.d0 = mdp.d; mdp.d_0 = mdp.d0;
+end
+
+if isfield(M.pE, 'pRuleExcl')
     mdp.d{4}(4)= mdp.pRuleExcl;
+    mdp.d0 = mdp.d; mdp.d_0 = mdp.d0;
+end
+
+if isfield(M.pE, 'pcount')
+   OPTIONS.BMR0.pcount = OPTIONS.BMR0.pcount;
+end
+if isfield(M.pE, 'thres')
+   OPTIONS.BMR0.thres = OPTIONS.BMR0.thres;
 end
 
 j = 1:numel(U); % observations for each trial (U = DCM.U = outcomes)
@@ -184,17 +225,13 @@ n = numel(j);   % number of trials
 
 [MDP(1:n)] = deal(mdp);  % Create MDP with number of specified trials
 [MDP.o]    = deal(U{j}); % Add observations in each trial
+% Add correct source cards from experiment to each trial
+MDP = WSCT_draw_from_exp_obs(MDP, U);
 controllable_factor = 5;
-
-% Model reduction at a specific trial
-BMR1.f = 4;
-BMR1.x = 1;
-BMR1.trial = 81;
-OPTIONS.BMR1 = BMR1;
 
 % solve MDP and accumulate log-likelihood
 %--------------------------------------------------------------------------
-MDP   = spm_MDP_VB_X_tutorial(MDP, OPTIONS); % run model with possible parameter values
+[MDP, OPTIONS]   = WSCT_X_tutorial(MDP, OPTIONS); % run model with possible parameter values
 
 
 L     = 0; % start (log) probability of actions given the model at 0
@@ -210,3 +247,4 @@ end
 clear('MDP')
 
 fprintf('LL: %f \n',L)
+

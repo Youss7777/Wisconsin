@@ -35,7 +35,7 @@ for i = 1:Nt
     end
     act_prob(:,i) = MDP(i).P(:, :, :, :, :, :, timestep_to_plot);
     act(:,i) = MDP(i).u(f_act,timestep_to_plot);
-    pref(:, i) = MDP(i).C{mod_out}(:, timestep_to_plot);
+    pref(:, i) = MDP(i).C{mod_out}(:, timestep_to_plot+1);
     outcomes(:, i) = MDP(i).o(mod_out, timestep_to_plot+1);
     posterior_states(:, i) = MDP(i).X{f_state}(:, timestep_to_plot+1);
     states(:, i) = MDP(i).s(f_state, timestep_to_plot+1);
@@ -47,6 +47,8 @@ end
 
 % Actions
 %--------------------------------------------------------------------------
+% remove 'wait' action probability (=0 anyway at timesteps of interest)
+act_prob(end, :) = [];
 col   = {'r.','g.','b.','c.','m.','k.'};
 subplot(6,1,1)
 if Nt < 64
@@ -59,9 +61,9 @@ image(64*(1 - act_prob)),  hold on
 
 plot(act,col{1},'MarkerSize',MarkerSize)
 
-try
-    plot(Np*(1 - act_prob(Np,:)),'r')
-end
+% try
+%     plot(Np*(1 - act_prob(Np,:)),'r')
+% end
 try
     E = spm_softmax(spm_cat({MDP.e}));
     plot(Np*(1 - E(end,:)),'r:')
@@ -75,6 +77,8 @@ yticklabels(MDP(1).label.action{f_act})
 
 % Outcomes and preference
 %--------------------------------------------------------------------------
+% remove preference for 'undecided' for plotting
+pref(end, :) = [];
 subplot(6,1,2)
 if Nt < 64
     MarkerSize = 24;
@@ -130,7 +134,7 @@ set(gca,'XTickLabel',{});
 
 % free energy & confidence
 % ------------------------------------------------------------------
-[F,Fu,~,~,~,~] = spm_MDP_F(MDP);
+[F,Fu,~,~,~,Fd] = WSCT_spm_MDP_F(MDP);
 subplot(6,1,5), plot(1:Nt,F),  xlabel('trial'), spm_axis tight, title('Free energy')
 subplot(6,1,6), plot(1:Nt,Fu), xlabel('trial'), spm_axis tight, title('Confidence')
 % subplot(5,1,5), plot(1:Nt,Fa(mod_out:mod_out:end)), xlabel('trial'), spm_axis tight, title('Free energy of A{'+string(mod_out)+'} parameters')
