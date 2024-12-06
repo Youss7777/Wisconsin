@@ -2,7 +2,7 @@
 clear all
 rng('default')
 % Number of time steps per trial
-T = 3; 
+T = 2; 
 % PARAMETERS
 % ---------------------------------------------
 % inverse temperature
@@ -18,20 +18,18 @@ loss = 1;
 reward = 5;
 % prior concentration parameters for rules
 pRuleObv = 5;
-pRuleExcl = 3;
+pRuleExcl = 3.2;
 % BMR
 BMR.pcount = 5;
-BMR.thres = 0.7;
+BMR.thres = 1;
 isBMR = 'noBMR';
 % Free parameters to fit
-params = {'alpha', 'eta'};
+params = {'alpha', 'eta', 'pcount', 'pRuleExcl'};
 % Choose type of simulation
 SIM_TYPE = 'solving';
 SOURCE_CARDS = 'random';    % random (from unambiguous source deck), 381, ambiguous (features change randomly)
-N = 60;
-% Participant infos
-participant = 381;
-%N_exp = 73;
+N = 50;
+%N_exp = 99;
 
 % SOURCE DECK
 deck{1} = {[0, 0, 0, 1]', [0, 0, 0, 1]', [0, 0, 0, 1]'};    % star, yellow, 4
@@ -81,50 +79,45 @@ Card{4}{3} = [0, 0, 0, 1]';       % number = 4
 % HIDDEN STATE FACTORS
 % =========================================================
 % Number of hidden state factors
-Nf = 6;
+Nf = 5;
 % Number of states per factor
 Ns(1) = 4; % shape = {circle, triangle, square, star}
 Ns(2) = 4; % color = {blue, red, green, yellow}
 Ns(3) = 4; % number = {1, 2, 3, 4}
 Ns(4) = 4; % rule = {shape, color, number, exclusion}
-Ns(5) = 3; % task sequence = {viewing, response, feedback}
-Ns(6) = 5; % choice = {card 1, card 2, card 3, card 4, wait}
+Ns(5) = 5; % choice = {card 1, card 2, card 3, card 4, undecided}
 % Prior for initial states in generative process
 D{1} = [0, 0, 0, 1]';         % shape = star
 D{2} = [0, 0, 0, 1]';         % color = yellow
 D{3} = [0, 0, 0, 1]';         % number = 4
-D{4} = [0, 0, 0, 1]';         % rule = shape
-D{5} = [1, 0, 0]';            % sequence = viewing
-D{6} = [0, 0, 0, 0, 1]';      % choice = wait
+D{4} = [0, 0, 0, 1]';         % rule = exclusion
+D{5} = [0, 0, 0, 0, 1]';      % flat prior over initial choice
 % Prior for initial states in generative model
 d{1} = [0.25, 0.25, 0.25, 0.25]';
 d{2} = [0.25, 0.25, 0.25, 0.25]';
 d{3} = [0.25, 0.25, 0.25, 0.25]';
-d{4} = [pRuleObv, pRuleObv, pRuleObv, pRuleExcl]';         % lower prior for the exclusion rule
-d{5} = [1, 0, 0]';
-d{6} = [0, 0, 0, 0, 1]';
+d{4} = [pRuleObv, pRuleObv, pRuleObv, pRuleExcl]';
+d{5} = [0, 0, 0, 0, 1]';
 
 % TRANSITION MATRICES
 % =========================================================
-Nu = 5;                                 % actions = {card 1, card 2, card 3, card 4, wait}
-for f=1:4
+Nu = 4;                                 % actions = {card 1, card 2, card 3, card 4}
+for f=1:Nf-1
     B{f}(:, :) = eye(Ns(f));            % features and rule do not change within a trial
 end
-B{5} = [0 0 1;                          % viewing -> response -> feedback
-        1 0 0;
-        0 1 0];
 B{Nf} = zeros(Ns(Nf), Ns(Nf), Nu);
 for u=1:Nu
-    B{Nf}(u, :, u) = 1;
+    for f=1:Ns(Nf)
+        B{Nf}(u, f, u) = 1;
+    end
 end
 
-% Policies
+% Shallow policies
 for f=1:Nf-1
-    V(:, :, f) = [1 1 1 1;
-                  1 1 1 1];                 % features, rule and sequence not controllable
+    U(:, :, f) = [1 1 1 1];                 % features and rule not controllable
 end
-V(:, :, Nf) = [5 5 5 5
-               1 2 3 4];                    % choice state controllable
+U(:, :, Nf) = [1 2 3 4];                    % choice state controllable
+
 
 % OUTCOME MODALITIES
 % =========================================================
@@ -134,97 +127,94 @@ Ng = 5;
 No(1) = 4; % shape = {circle, triangle, square, star}
 No(2) = 4; % color = {blue, red, green, yellow}
 No(3) = 4; % number = {1, 2, 3, 4}
-No(4) = 5; % choice = {card 1, card 2, card 3, card 4, wait}
+No(4) = 5; % choice = {card 1, card 2, card 3, card 4, undecided}
 No(5) = 3; % feedback = {incorrect, correct, undecided}
 
 % LIKELIHOOD MAPPING
 % ---------------------------------------------------------
 for g=1:Ng
-    A{g}=zeros([No(g), Ns(1), Ns(2), Ns(3), Ns(4), Ns(5), Ns(6)]);
+    A{g}=zeros([No(g), Ns(1), Ns(2), Ns(3), Ns(4), Ns(5)]);
 end
 % Shape
-A{1}(1, 1, :, :, :, :, :) = 1;     % circle
-A{1}(2, 2, :, :, :, :, :) = 1;     % triangle
-A{1}(3, 3, :, :, :, :, :) = 1;     % square
-A{1}(4, 4, :, :, :, :, :) = 1;     % star
+A{1}(1, 1, :, :, :, :) = 1;     % circle
+A{1}(2, 2, :, :, :, :) = 1;     % triangle
+A{1}(3, 3, :, :, :, :) = 1;     % square
+A{1}(4, 4, :, :, :, :) = 1;     % star
 % Color
-A{2}(1, :, 1, :, :, :, :) = 1;     % blue
-A{2}(2, :, 2, :, :, :, :) = 1;     % red
-A{2}(3, :, 3, :, :, :, :) = 1;     % green
-A{2}(4, :, 4, :, :, :, :) = 1;     % yellow
+A{2}(1, :, 1, :, :, :) = 1;     % blue
+A{2}(2, :, 2, :, :, :) = 1;     % red
+A{2}(3, :, 3, :, :, :) = 1;     % green
+A{2}(4, :, 4, :, :, :) = 1;     % yellow
 % Number
-A{3}(1, :, :, 1, :, :, :) = 1;     % 1
-A{3}(2, :, :, 2, :, :, :) = 1;     % 2
-A{3}(3, :, :, 3, :, :, :) = 1;     % 3
-A{3}(4, :, :, 4, :, :, :) = 1;     % 4
+A{3}(1, :, :, 1, :, :) = 1;     % 1
+A{3}(2, :, :, 2, :, :) = 1;     % 2
+A{3}(3, :, :, 3, :, :) = 1;     % 3
+A{3}(4, :, :, 4, :, :) = 1;     % 4
 % Choice observation
 for o=1:No(4)
-    A{4}(o, :, :, :, :, :, o) = 1;
+    A{4}(o, :, :, :, :, o) = 1;
 end
 % Feedback
-seq = 3;                           % feedback sequence
 rule = 1;                          % shape matching rule
 feature = 1;
 for shape=1:No(1)
-    for choice=1:Ns(6)-1
+    for choice=1:Ns(Nf)-1
         if any(shape ~= find(Card{choice}{feature}==1))
             feedback = 1;          % incorrect feedback
-            A{5}(feedback, shape, :, :, rule, seq, choice) = 1;
+            A{5}(feedback, shape, :, :, rule, choice) = 1;
 
         else
             feedback = 2;          % correct feedback
-            A{5}(feedback, shape, :, :, rule, seq, choice) = 1;
+            A{5}(feedback, shape, :, :, rule, choice) = 1;
         end
     end
 end
 rule = 2;                       % color matching rule
 feature = 2;
 for color=1:No(2)
-    for choice=1:Ns(6)-1
+    for choice=1:Ns(Nf)-1
         if any(color ~= find(Card{choice}{feature}==1))
             feedback = 1;
-            A{5}(feedback, :, color, :, rule, seq, choice) = 1;
+            A{5}(feedback, :, color, :, rule, choice) = 1;
 
         else
             feedback = 2;
-            A{5}(feedback, :, color, :, rule, seq, choice) = 1;
+            A{5}(feedback, :, color, :, rule, choice) = 1;
         end
     end
 end
 rule = 3;                       % number matching rule
 feature = 3;
 for num=1:No(3)
-    for choice=1:Ns(6)-1
+    for choice=1:Ns(Nf)-1
         if any(num ~= find(Card{choice}{feature}==1))
             feedback = 1;
-            A{5}(feedback, :, :, num, rule, seq, choice) = 1;
+            A{5}(feedback, :, :, num, rule, choice) = 1;
 
         else
             feedback = 2;
-            A{5}(feedback, :, :, num, rule, seq, choice) = 1;
+            A{5}(feedback, :, :, num, rule, choice) = 1;
         end
     end
 end
 rule = 4;                       % no matching feature rule
-for choice=1:Ns(6)-1
+for choice=1:Ns(Nf)-1
     for shape=1:No(1)
         for color=1:No(2)
             for num=1:No(3)
                 if (shape ~= find(Card{choice}{1})) && (color ~= find(Card{choice}{2})) && (num ~= find(Card{choice}{3}))
                     feedback = 2;
-                    A{5}(feedback, shape, color, num, rule, seq, choice) = 1;     
+                    A{5}(feedback, shape, color, num, rule, choice) = 1;     
                 else
                     feedback = 1;
-                    A{5}(feedback, shape, color, num, rule, seq, choice) = 1;
+                    A{5}(feedback, shape, color, num, rule, choice) = 1;
                 end
             end
         end
     end
 end
 % Undecided feedback
-A{5}(3, :, :, :, :, :, 5) = 1;              % wait choice
-A{5}(3, :, :, :, :, 1, :) = 1;              % viewing sequence
-A{5}(3, :, :, :, :, 2, :) = 1;              % response sequence
+A{5}(3, :, :, :, :, 5) = 1;              % undecided choice state
 
 % PREFERRED OUTCOMES
 % ------------------------------------------
@@ -239,8 +229,8 @@ C{Ng}(:, T) = [-loss; % Incorrect
 % MDP STRUCTURE
 %==================================================================
 mdp.T = T;                    % Number of time steps
-%mdp.U = U;                    % allowable (shallow) policies
-mdp.V = V;                    % allowable (deep) policies
+mdp.U = U;                    % allowable (shallow) policies
+%mdp.V = V;                    % allowable (deep) policies
 mdp.A = A;                    % state-outcome mapping
 mdp.B = B;                    % transition probabilities
 mdp.C = C;                    % preferred states
@@ -266,10 +256,8 @@ label.factor{3}   = 'number';
 label.name{3}    = {'1', '2', '3', '4'};
 label.factor{4}   = 'rule';     
 label.name{4}    = {'shape', 'color', 'number', 'exclusion'};
-label.factor{5}   = 'sequence';
-label.name{5}    = {'viewing', 'response','feedback'};
-label.factor{6}   = 'choice';
-label.name{6}    = {'card 1','card 2', 'card 3', 'card 4', 'wait'};
+label.factor{5}   = 'choice';
+label.name{5}    = {'card 1','card 2', 'card 3', 'card 4', 'undecided'};
 
 label.modality{1}   = 'shape';
 label.outcome{1}    = {'circle', 'triangle', 'square', 'star'};
@@ -282,13 +270,15 @@ label.outcome{4}    = {'card 1','card 2', 'card 3', 'card 4'};
 label.modality{5}   = 'feedback';
 label.outcome{5}    = {'incorrect', 'correct', 'undecided'};
 for i = 1:Nf
-    label.action{i} = {'card1', 'card2', 'card3', 'card4', 'wait'};
+    label.action{i} = {'card1', 'card2', 'card3', 'card4'};
 end
 mdp.label = label;
 
 
 % MODEL INVERSION
 %==================================================================
+% Participant infos
+participant = 381;
 % Model reduction
 BMR.f = 4;
 BMR.eps = 0.1;
@@ -312,12 +302,12 @@ if strcmp(SIM_TYPE, 'fitting')
     N = N_exp;
     % Get outcomes and actions from experimental subject
     [MDP(1:N)] = deal(mdp);
-    Exp_MDP = WSCT_get_data_768(MDP);
-    disp(['participant: ' num2str(participant)])
+    Exp_MDP = WSCT_get_data_381_shallow(MDP);
+
     % Model inversion
-    DCM = WSCT_model_inversion(mdp, OPTIONS, Exp_MDP, params);
+    DCM = WSCT_model_inversion_shallow(mdp, OPTIONS, Exp_MDP, params);
     disp('Saving DCM...')
-    filename = ['WSCT_DCM_deep_' num2str(participant) '_' isBMR '_ ' SIM_TYPE '.mat'];
+    filename = ['WSCT_DCM_shallow_' num2str(participant) '_' isBMR '_ ' SIM_TYPE '.mat'];
     save(filename, 'DCM');
     disp('DCM saved!')
 
@@ -326,28 +316,25 @@ elseif strcmp(SIM_TYPE, 'recovering')
     % Get outcomes and actions from simulated subject
     [Sim_Exp(1:N)] = deal(mdp);
     [Sim_Exp, ~] = WSCT_X_tutorial(Sim_Exp, OPTIONS);
-    disp(['participant: ' num2str(participant)])
     % Model inversion
-    DCM = WSCT_model_inversion(mdp, OPTIONS, Sim_Exp, params);
+    DCM = WSCT_model_inversion_shallow(mdp, OPTIONS, Sim_Exp, params);
     % Saving DCM
     disp('Saving DCM...')
-    filename = ['WSCT_DCM_deep_' num2str(participant) '_' isBMR '_' SIM_TYPE '.mat'];
+    filename = ['WSCT_DCM_shallow_' num2str(participant) '_' isBMR '_ ' SIM_TYPE '.mat'];
     save(filename, 'DCM');
     disp('DCM saved!')
 
 elseif strcmp(SIM_TYPE, 'comparison')
     N = N_exp;
     [MDP(1:N)] = deal(mdp);
-    Exp_MDP = WSCT_get_data_768(MDP);
-    disp(['participant: ' num2str(participant)])
-
+    Exp_MDP = WSCT_get_data_381_shallow(MDP);
 
     % BMR
     clear isBMR
     isBMR = 'BMR';
-    DCM_BMR = WSCT_model_inversion(mdp, OPTIONS, Exp_MDP, params);
+    DCM_BMR = WSCT_model_inversion_shallow(mdp, OPTIONS, Exp_MDP, params);
     disp('Saving DCM...')
-    filename_BMR = ['WSCT_DCM_deep_' num2str(participant) '_' isBMR '_' SIM_TYPE '.mat'];
+    filename_BMR = ['WSCT_DCM_shallow_' num2str(participant) '_' isBMR '_' SIM_TYPE '.mat'];
     save(filename_BMR, 'DCM_BMR');
     disp('DCM saved!')
 
@@ -355,9 +342,9 @@ elseif strcmp(SIM_TYPE, 'comparison')
     clear OPTIONS isBMR
     OPTIONS = {};
     isBMR = 'noBMR';
-    DCM_noBMR = WSCT_model_inversion(mdp, OPTIONS, Exp_MDP, params);
+    DCM_noBMR = WSCT_model_inversion_shallow(mdp, OPTIONS, Exp_MDP, params);
     disp('Saving DCM...')
-    filename_noBMR = ['WSCT_DCM_deep_' num2str(participant) '_' isBMR '_' SIM_TYPE '.mat'];
+    filename_noBMR = ['WSCT_DCM_shallow_' num2str(participant) '_' isBMR '_' SIM_TYPE '.mat'];
     save(filename_noBMR, 'DCM_noBMR');
     disp('DCM saved!')
 
@@ -369,9 +356,6 @@ elseif strcmp(SIM_TYPE, 'comparison')
     [alpha,exp_r,xp,pxp,bor] = spm_BMS([F_381_BMR F_381_noBMR]);
     disp(['pxp= ' mat2str(pxp)])
 
-elseif strcmp(SIM_TYPE, 'performance')
-    
-
 
 elseif strcmp(SIM_TYPE, 'solving')
     
@@ -379,26 +363,7 @@ elseif strcmp(SIM_TYPE, 'solving')
         N = N_exp;
         [MDP(1:N)] = deal(mdp);
         % Add source cards from experiment to MDP
-        Exp_MDP = WSCT_get_data_381(MDP);
-        disp(['participant: ' num2str(participant)])
-        % Get source cards from subject observations
-        MDP = WSCT_draw_from_exp_obs(MDP, {Exp_MDP.o});
-        [MDP, OPTIONS] = WSCT_X_tutorial(MDP, OPTIONS);
-    elseif strcmp(SOURCE_CARDS, '768')
-        N = N_exp;
-        [MDP(1:N)] = deal(mdp);
-        % Add source cards from experiment to MDP
-        Exp_MDP = WSCT_get_data_768(MDP);
-        disp(['participant: ' num2str(participant)])
-        % Get source cards from subject observations
-        MDP = WSCT_draw_from_exp_obs(MDP, {Exp_MDP.o});
-        [MDP, OPTIONS] = WSCT_X_tutorial(MDP, OPTIONS);
-    elseif strcmp(SOURCE_CARDS, '828')
-        N = N_exp;
-        [MDP(1:N)] = deal(mdp);
-        % Add source cards from experiment to MDP
-        Exp_MDP = WSCT_get_data_828(MDP);
-        disp(['participant: ' num2str(participant)])
+        Exp_MDP = WSCT_get_data_381_shallow(MDP);
         % Get source cards from subject observations
         MDP = WSCT_draw_from_exp_obs(MDP, {Exp_MDP.o});
         [MDP, OPTIONS] = WSCT_X_tutorial(MDP, OPTIONS);
@@ -420,10 +385,10 @@ elseif strcmp(SIM_TYPE, 'solving')
     f_act = Nf;
     f_state = 4;
     mod_out = Ng;
-    timestep_to_plot = 2;
+    timestep_to_plot = 1;
 
     % Plot
-    WSCT_plot(MDP, OPTIONS, f_act, f_state, mod_out, timestep_to_plot);
+    WSCT_plot_shallow(MDP, OPTIONS, f_act, f_state, mod_out, timestep_to_plot);
 
 else
     disp('ERROR: Launch not specified')

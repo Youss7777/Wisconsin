@@ -1,4 +1,4 @@
-function [DCM] = WSCT_Estimate_parameters(DCM)
+function [DCM] = WSCT_Estimate_parameters_shallow(DCM)
 
 % MDP inversion using Variational Bayes
 % FORMAT [DCM] = spm_dcm_mdp(DCM)
@@ -48,7 +48,7 @@ ALL = false;
 prior_variance = 1/4; % smaller values will lead to a greater complexity 
                       % penalty (posteriors will remain closer to priors)
 % inverse temperature
-prior_alpha = 10;
+prior_alpha = 8;
 % learning rate
 prior_eta = 0.5;
 % forgetting rate
@@ -60,7 +60,7 @@ prior_loss = 1;
 prior_reward = 5;
 % prior concentration parameters on rules
 prior_pRuleObv = 5;
-prior_pRuleExcl = 3;
+prior_pRuleExcl = 2.3;
 % BMR
 prior_pcount = 7.4;
 prior_thres = 1;
@@ -100,7 +100,7 @@ for i = 1:length(DCM.field)
             pC{i,i}    = 1;
         elseif strcmp(field, 'pRuleExcl')
             pE.(field) = log(prior_pRuleExcl);
-            pC{i,i}    = prior_variance;
+            pC{i,i}    = 1/5;
         elseif strcmp(field, 'pcount')
             pE.(field) = log(prior_pcount);
             pC{i,i}    = 1;
@@ -234,7 +234,7 @@ n = numel(j);   % number of trials
 [MDP.o]    = deal(U{j}); % Add observations in each trial
 % Add correct source cards from experiment to each trial
 MDP = WSCT_draw_from_exp_obs(MDP, U);
-controllable_factor = 6;
+controllable_factor = 5;
 
 % solve MDP and accumulate log-likelihood
 %--------------------------------------------------------------------------
@@ -246,7 +246,7 @@ L     = 0; % start (log) probability of actions given the model at 0
 for i = 1:numel(Y) % Get probability of true actions for each trial
     for j = 1:numel(Y{1}(controllable_factor,:)) % Only get probability of the sixth (controllable) state factor
 
-        L = L + log(MDP(i).P(:,:,:,:,:,Y{i}(controllable_factor,j),j)+ eps); % sum the (log) probabilities of each action
+        L = L + log(MDP(i).P(:,:,:,:,Y{i}(controllable_factor,j),j)+ eps); % sum the (log) probabilities of each action
                                                    % given a set of possible parameter values
     end
 end 

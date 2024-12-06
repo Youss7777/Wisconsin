@@ -41,9 +41,8 @@ rD = pD;
 % Identify indices of non-zero prior parameters
 %--------------------------------------------------------------------------
 j = find(pD > eps);       % Indices where prior is non-zero
-p = pD(j);
-q = qD(j);
-
+p = pD; %p = pD(j);
+q = qD; %q = qD(j);
 % Only proceed if number of parameters is greater than 1
 %--------------------------------------------------------------------------
 if length(j) > 1
@@ -54,8 +53,13 @@ if length(j) > 1
     F = zeros(length(j), 1);
     for i = 1:length(j)
         r = p;
-        r(i) = r(i) + pcount;
+        r(i) = r(i) + pcount;       % r(i) + pcount normally
         F(i) = spm_MDP_log_evidence(q,p,r);
+        BMR.rF{i} = [BMR.rF{i} F(i)];             % store expected free energy reduction
+        disp(['rF{' num2str(i) '} = ' mat2str(BMR.rF{i})])
+
+        disp(['p = ' mat2str(p)])
+        disp(['q = ' mat2str(q)])
         disp(['r = ' mat2str(r)])
         disp(['F(i) = ' num2str(F(i))])
     end
@@ -69,7 +73,6 @@ if length(j) > 1
         rD(jmin) = sum(p);
     
         BMR.applied     = true;
-        BMR.rF      = [BMR.rF {F}];
         BMR.jmin    = [BMR.jmin jmin];
         BMR.rFmin   = [BMR.rFmin Fmin];
         BMR.rD      = [BMR.rD rD];
@@ -81,14 +84,14 @@ if length(j) > 1
         disp('Updated posterior (sD):'), disp(sD)
     else
         BMR.applied     = false;
-        sD(j) = q;
-        rD(j) = p;
+        sD = q; %sD(j) = q;
+        rD = p; %rD(j) = p;
         disp('No significant model reduction found.')
     end
 else
     % If only one parameter, retain original counts
-    sD(j) = q;
-    rD(j) = p;
+    sD = q; %sD(j) = q;
+    rD = p; %rD(j) = p;
     BMR.applied = false;
     disp('Only one parameter present; no reduction applied.');
 end

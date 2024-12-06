@@ -1,4 +1,4 @@
-function [DCM] = WSCT_model_inversion(mdp, OPTIONS, Exp_MDP, field_params)
+function [DCM] = WSCT_model_inversion_shallow(mdp, OPTIONS, Exp_MDP, field_params)
 % MODEL INVERSION
 %==============================================================
 DCM.mdp = mdp;
@@ -8,7 +8,7 @@ DCM.Y = {Exp_MDP.u};
 DCM.field = field_params;
 
 disp('Starting...')
-DCM = WSCT_Estimate_parameters(DCM); % Run the parameter estimation function
+DCM = WSCT_Estimate_parameters_shallow(DCM); % Run the parameter estimation function
 disp('Finished!')
 
 

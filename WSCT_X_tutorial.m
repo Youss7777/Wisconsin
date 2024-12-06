@@ -202,12 +202,17 @@ if size(MDP,2) > 1
                 [OUT(m,i), OPTIONS.BMR0] =  WSCT_prune(OUT(m,i), OPTIONS.BMR0);
                 if isfield(OPTIONS.BMR0, 'applied') && OPTIONS.BMR0.applied == true
                     OPTIONS.BMR0.trials = [OPTIONS.BMR0.trials i];
+                    disp(['BMR after trial ' num2str(i)])
                 end
             end
         end
         if isfield(OPTIONS, 'BMR1') && i == OPTIONS.BMR1.trial
             for m = 1:size(MDP,1)
-                OUT(m,i) =  WSCT_prune(OUT(m,i), OPTIONS.BMR1);
+                [OUT(m,i), OPTIONS.BMR1] =  WSCT_prune(OUT(m,i), OPTIONS.BMR1);
+                if isfield(OPTIONS.BMR1, 'applied') && OPTIONS.BMR1.applied == true
+                    OPTIONS.BMR1.trials = [OPTIONS.BMR1.trials i];
+                    disp(['BMR after trial: ' num2str(i)])
+                end
             end
         end
     end
@@ -822,7 +827,7 @@ for t = 1:T
                         %--------------------------------------------------
                         if j <= t
                             for f = 1:Nf(m)
-                                xq{m,f} = full(x{m,f}(:,j,k));
+                                xq{m,f} = full(x{m,f}(:,j,k)); % get posterior for this specific time j and policy k
                             end
                         end
                         
@@ -979,7 +984,6 @@ for t = 1:T
                     %------------------------------------------------------
                     if OPTIONS.gamma
                         w{m}(t) = 1/beta;
-                        % disp('YUPPP')
                     else
                         eg      = (qu - pu)'*Q(p{m});   % G_error = (pi - pi_0) * (-G)
                         dFdg    = qb{m} - beta + eg;    % beta_update = beta - beta_0 + G_error

@@ -1,4 +1,4 @@
-function WSCT_plot(MDP, OPTIONS, f_act, f_state, mod_out, timestep_to_plot)
+function WSCT_plot_shallow(MDP, OPTIONS, f_act, f_state, mod_out, timestep_to_plot)
 % f_act: state factor for which to display sampled actions
 % mod_out : outcome modality for which to display outcomes
 
@@ -33,7 +33,7 @@ for i = 1:Nt
             end
         end
     end
-    act_prob(:,i) = MDP(i).P(:, :, :, :, :, :, timestep_to_plot);
+    act_prob(:,i) = MDP(i).P(:, :, :, :, :, timestep_to_plot);
     act(:,i) = MDP(i).u(f_act,timestep_to_plot);
     pref(:, i) = MDP(i).C{mod_out}(:, timestep_to_plot+1);
     outcomes(:, i) = MDP(i).o(mod_out, timestep_to_plot+1);
@@ -43,7 +43,6 @@ for i = 1:Nt
     prec(:,i) = MDP(i).w(timestep_to_plot+1);
     mod_policy(i) = max(act_prob(:,i));
     G(i) = sum(sum(MDP(i).G));
-
 end
 
 
@@ -52,7 +51,7 @@ end
 % remove 'wait' action probability (=0 anyway at timesteps of interest)
 % act_prob(end, :) = [];
 col   = {'r.','g.','b.','c.','m.','k.'};
-subplot(6,1,1)
+subplot(7,1,1)
 if Nt < 64
     MarkerSize = 24;
 else
@@ -81,7 +80,7 @@ yticklabels(MDP(1).label.action{f_act})
 %--------------------------------------------------------------------------
 % remove preference for 'undecided' for plotting
 % pref(end, :) = [];
-subplot(6,1,2)
+subplot(7,1,2)
 if Nt < 64
     MarkerSize = 24;
 else
@@ -101,7 +100,7 @@ yticklabels(MDP(1).label.outcome{mod_out})
 
 % posterior beliefs about hidden states
 %--------------------------------------------------------------------------
-subplot(6,1,3)
+subplot(7,1,3)
 if Nt < 64
     MarkerSize = 24;
 else
@@ -117,9 +116,9 @@ yticks(1:numel(MDP(1).label.name{f_state}))
 yticklabels(MDP(1).label.name{f_state})
 
 
-% simulated dopamine (deconvolved gamma)
+% precision
 %--------------------------------------------------------------------------
-subplot(6,1,4)
+subplot(7,1,4)
 w = dn;
 w   = spm_vec(w);
 if Nt > 8
@@ -136,11 +135,12 @@ set(gca,'XTickLabel',{});
 
 % free energy & confidence
 % ------------------------------------------------------------------
-
 [F,Fu,~,~,~,~] = WSCT_spm_MDP_F(MDP);
-%subplot(8,1,5), plot(1:Nt,Fu),  xlabel('trial'), spm_axis tight, title('Confidence (entropy over policies)')
-subplot(6,1,5), plot(1:Nt,mod_policy), xlabel('trial'), spm_axis tight, title('Confidence (probability of best policy)')
-%subplot(8,1,7), plot(1:Nt,prec), xlabel('trial'), spm_axis tight, title('Precision (gamma)')
+subplot(7,1,5), plot(1:Nt,Fu),  xlabel('trial'), spm_axis tight, title('Negative entropy over policies')
+subplot(7,1,6), plot(1:Nt,mod_policy), xlabel('trial'), spm_axis tight, title('Confidence (probability of best policy)')
+subplot(7,1,7), plot(1:Nt,prec), xlabel('trial'), spm_axis tight, title('Gamma')
+
+spm_figure('GetWin', 'Model reduction'); clf    % display behavior
 
 if isfield(OPTIONS, 'BMR0')
     rF1 = OPTIONS.BMR0.rF{1};
@@ -154,26 +154,25 @@ if isfield(OPTIONS, 'BMR0')
         rF4 = [rF4, NaN(1, Nt - length(rF4))];
     end
     % Plot each curve with different colors
-    subplot(6,1,6)
+    subplot(8,1,8)
     hold on;
-    plot(1:Nt, rF1, 'Color', [0, 0.4470, 0.7410]), xlabel('trial')
+    plot(1:Nt, rF1, 'Color', [0, 0.4470, 0.7410]), xlabel('trial')%
     plot(1:Nt, rF2, 'Color', [0.8500, 0.3250, 0.0980]), xlabel('trial')
     plot(1:Nt, rF3, 'Color', [0.9290, 0.6940, 0.1250]), xlabel('trial')
     plot(1:Nt, rF4, 'Color', [0.4940, 0.1840, 0.5560]), xlabel('trial')
 
     % Plot horizontal dotted line at y = -1
-    yline(-OPTIONS.BMR0.thres, 'k--', 'LineWidth', 1.5); % Black dotted line
+    yline(-1, 'k--', 'LineWidth', 1.5); % Black dotted line
     
     xlabel('Trial');
     title('Expected free energy reduction');
-    xlim([1 Nt]); % Set the x-axis limit to extend to 70
+    xlim([1 70]); % Set the x-axis limit to extend to 70
     ylim([-1.5 inf]); % Set the y-axis limit to start from -1.5
     hold off;
 end
 
-%spm_figure('GetWin', 'Performance'); clf    % display behavior
-
-
+spm_figure('GetWin', 'Single trial'); clf    % display behavior
+spm_MDP_VB_LFP(MDP(2), [], f_state); 
 
 % spm_figure('Matrices','WSCT'); clf    % display behavior
 
