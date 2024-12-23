@@ -1,4 +1,4 @@
-function WSCT_plot(MDP, OPTIONS, f_act, f_state, mod_out, timestep_to_plot)
+function [surprise] = WSCT_plot(MDP, OPTIONS, f_act, f_state, mod_out, timestep_to_plot)
 % f_act: state factor for which to display sampled actions
 % mod_out : outcome modality for which to display outcomes
 
@@ -40,17 +40,22 @@ for i = 1:Nt
     posterior_states(:, i) = MDP(i).X{f_state}(:, timestep_to_plot+1);
     states(:, i) = MDP(i).s(f_state, timestep_to_plot+1);
     dn(:,i) = mean(MDP(i).dn,2);
+    wn(:,i) = MDP(i).wn; 
     prec(:,i) = MDP(i).w(timestep_to_plot+1);
     mod_policy(i) = max(act_prob(:,i));
     G(i) = sum(sum(MDP(i).G));
-
+    % if i==1
+    %     surprise(i) = -spm_KL_dir(MDP(i).X{f_state}(:, timestep_to_plot+1), spm_norm(MDP(i).d{f_state}));
+    % elseif i > 1
+    %     surprise(i) = -spm_KL_dir(MDP(i).X{f_state}(:, timestep_to_plot+1), MDP(i-1).X{f_state}(:, timestep_to_plot+1));
+    % end
 end
 
 
 % Actions
 %--------------------------------------------------------------------------
 % remove 'wait' action probability (=0 anyway at timesteps of interest)
-% act_prob(end, :) = [];
+act_prob(end, :) = [];
 col   = {'r.','g.','b.','c.','m.','k.'};
 subplot(6,1,1)
 if Nt < 64
@@ -71,7 +76,7 @@ try
     plot(Np*(1 - E(end,:)),'r:')
 end
 title('Action selection and action probabilities')
-xlabel('Trial'),ylabel('Action'), hold off
+xlabel('trial'),ylabel('action'), hold off
 yticks(1:numel(MDP(1).label.action{f_act}))
 yticklabels(MDP(1).label.action{f_act})
 
@@ -80,7 +85,7 @@ yticklabels(MDP(1).label.action{f_act})
 % Outcomes and preference
 %--------------------------------------------------------------------------
 % remove preference for 'undecided' for plotting
-% pref(end, :) = [];
+pref(end, :) = [];
 subplot(6,1,2)
 if Nt < 64
     MarkerSize = 24;
@@ -94,7 +99,7 @@ plot(outcomes,col{1},'MarkerSize',MarkerSize)
 
 
 title('Outcomes and outcome probabilities')
-xlabel('Trial'),ylabel(MDP(1).label.modality{mod_out}), hold off
+xlabel('trial'),ylabel(MDP(1).label.modality{mod_out}), hold off
 yticks(1:numel(MDP(1).label.modality{mod_out}))
 yticklabels(MDP(1).label.outcome{mod_out})
 
@@ -112,10 +117,24 @@ image(64*(1 - posterior_states)),  hold on
 
 plot(states,col{1},'MarkerSize',MarkerSize)
 title('Hidden states and posterior beliefs')
-xlabel('Trial'),ylabel(MDP(1).label.factor{f_state}), hold off
+xlabel('trial'),ylabel(MDP(1).label.factor{f_state}), hold off
 yticks(1:numel(MDP(1).label.name{f_state}))
 yticklabels(MDP(1).label.name{f_state})
 
+% free energy
+%--------------------------------------------------------------------------
+[F,Fu,~,~,~,Fd,~,~] = WSCT_spm_MDP_F(MDP, f_state);
+subplot(6,1,4), plot(1:Nt,F), ylabel('nats'), xlabel('trial'), spm_axis tight, title('Free energy')
+
+% confidence(s)
+% ------------------------------------------------------------------
+spm_figure('GetWin', 'ConfidencePlot'); clf    % display behavior
+subplot(6,1,1), plot(1:Nt,Fu), ylabel('nats'), xlabel('trial'), spm_axis tight, title('Confidence (negative entropy over policies)')
+subplot(6,1,2), plot(1:Nt,mod_policy), ylabel('probability'), xlabel('trial'), spm_axis tight, title('Confidence (probability of best policy)')
+
+% precision (gamma)
+%--------------------------------------------------------------------------
+subplot(6,1,3), plot(1:Nt,prec), ylabel('precision'), xlabel('trial'), spm_axis tight, title('Precision (gamma)')
 
 % simulated dopamine (deconvolved gamma)
 %--------------------------------------------------------------------------
@@ -128,20 +147,25 @@ if Nt > 8
 else
     bar(w,1.1,'k')
 end
-title('Precision (dopamine)')
-ylabel('Precision'), spm_axis tight, box off
+title('Dopamine')
+ylabel('precision update'), spm_axis tight, box off
 YLim = get(gca,'YLim'); YLim(1) = 0; set(gca,'YLim',YLim);
 set(gca,'XTickLabel',{});
 
-
-% free energy & confidence
+% changes in expected precision
 % ------------------------------------------------------------------
+% subplot(6,1,4)
+% dn    = spm_vec(dn);
+% dn    = dn.*(dn > 0);
+% dn    = dn + (dn + 1/16).*rand(size(dn))/8;
+% bar(dn,1,'k'), title('Dopamine responses')
+% xlabel('time (updates)','FontSize',12)
+% ylabel('change in precision','FontSize',12), spm_axis tight, box off
+% YLim = get(gca,'YLim'); YLim(1) = 0; set(gca,'YLim',YLim);
 
-[F,Fu,~,~,~,~] = WSCT_spm_MDP_F(MDP);
-%subplot(8,1,5), plot(1:Nt,Fu),  xlabel('trial'), spm_axis tight, title('Confidence (entropy over policies)')
-subplot(6,1,5), plot(1:Nt,mod_policy), xlabel('trial'), spm_axis tight, title('Confidence (probability of best policy)')
-%subplot(8,1,7), plot(1:Nt,prec), xlabel('trial'), spm_axis tight, title('Precision (gamma)')
 
+% reduction of free energy
+%--------------------------------------------------------------------------
 if isfield(OPTIONS, 'BMR0')
     rF1 = OPTIONS.BMR0.rF{1};
     rF2 = OPTIONS.BMR0.rF{2};
@@ -154,7 +178,7 @@ if isfield(OPTIONS, 'BMR0')
         rF4 = [rF4, NaN(1, Nt - length(rF4))];
     end
     % Plot each curve with different colors
-    subplot(6,1,6)
+    subplot(6,1,5)
     hold on;
     plot(1:Nt, rF1, 'Color', [0, 0.4470, 0.7410]), xlabel('trial')
     plot(1:Nt, rF2, 'Color', [0.8500, 0.3250, 0.0980]), xlabel('trial')
@@ -164,12 +188,19 @@ if isfield(OPTIONS, 'BMR0')
     % Plot horizontal dotted line at y = -1
     yline(-OPTIONS.BMR0.thres, 'k--', 'LineWidth', 1.5); % Black dotted line
     
-    xlabel('Trial');
-    title('Expected free energy reduction');
+    xlabel('trial');
+    ylabel('nats');
+    title('Expected reduction in free energy');
     xlim([1 Nt]); % Set the x-axis limit to extend to 70
     ylim([-1.5 inf]); % Set the y-axis limit to start from -1.5
     hold off;
 end
+
+function A  = spm_norm(A)
+% normalisation of a probability transition matrix (columns)
+%--------------------------------------------------------------------------
+A           = bsxfun(@rdivide,A,sum(A,1));
+A(isnan(A)) = 1/size(A,1);
 
 %spm_figure('GetWin', 'Performance'); clf    % display behavior
 
@@ -211,17 +242,6 @@ end
 % yticklabels({'incorrect', 'correct', 'null'})
 % xlabel('choice state')
 
-
-% changes in expected precision
-% ------------------------------------------------------------------
-% subplot(3,1,2)
-% dn    = spm_vec(dn);
-% dn    = dn.*(dn > 0);
-% dn    = dn + (dn + 1/16).*rand(size(dn))/8;
-% bar(dn,1,'k'), title('Dopamine responses')
-% xlabel('time (updates)','FontSize',12)
-% ylabel('change in precision','FontSize',12), spm_axis tight, box off
-% YLim = get(gca,'YLim'); YLim(1) = 0; set(gca,'YLim',YLim);
 
 % % posterior beliefs about hidden states
 % figure;

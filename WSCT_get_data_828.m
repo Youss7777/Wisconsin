@@ -1,5 +1,5 @@
 function [MDP] = WSCT_get_data_828(MDP)
-% learned rule after trial 55 (starting exactly from trial 56)
+% learned rule after trial 55
 MDP(1).o = [ 3 3 3 ;
 3 3 3 ;
 4 4 4 ;

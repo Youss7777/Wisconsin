@@ -1,4 +1,4 @@
-function [F,Fu,Fs,Fq,Fg,Fd] = WSCT_spm_MDP_F(MDP)
+function [F,Fu,Fs,Fq,Fg,Fd, p_best_policy, prec] = WSCT_spm_MDP_F(MDP, f_state)
 % auxiliary function for retrieving free energy and its components
 % FORMAT [F,Fu,Fs,Fq,Fg,Fa] = spm_MDP_F(MDP)
 %
@@ -27,12 +27,16 @@ if m > 1
         % free action due to states and policies
         %------------------------------------------------------------------
         [f,fu,fs,fq,fg] = WSCT_spm_MDP_F(MDP(i));
-        F(i ) = sum(f);
+        F(i) = sum(f);
         Fu(i) = sum(fu);
         Fs(i) = sum(fs);
         Fq(i) = sum(fq);
         Fg(i) = sum(fg);
-        
+        Fd(i) = MDP(i).Fd(f_state);
+        act_prob(:,i) = MDP(i).P(:, :, :, :, :, :, 2);
+        p_best_policy(i) = max(act_prob(:,i));
+        prec(:,i) = MDP(i).w(3);
+
         % free energy due to parameters
         %------------------------------------------------------------------
         try
@@ -58,5 +62,7 @@ else
     Fg  = qg/pg - log(qg);                      % free energy of precision
     Fd  = [];
     F   = Fs + Fu + Fq + Fg;                    % total free energy
+    act_prob = MDP.P(:, :, :, :, :, :, 2);
+    p_best_policy = max(act_prob);
     
 end

@@ -5,7 +5,7 @@ for i=1:N
 ss = sum(Exp_MDP(i).u(6,2)==MDP(i).u(6,2));
 s = s + ss;
 end
-res = s/N
+res = s/N;
 
 for i=1:N
 exp_act(i) = Exp_MDP(i).u(6,2);

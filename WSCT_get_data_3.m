@@ -1,4 +1,5 @@
 function [MDP] = WSCT_get_data_3(MDP)
+% solver after trial 53
 MDP(1).o = [ 3 3 3 ;
 3 3 3 ;
 1 1 1 ;

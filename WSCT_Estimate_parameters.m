@@ -1,4 +1,4 @@
-function [DCM] = WSCT_Estimate_parameters(DCM)
+function [DCM] = WSCT_Estimate_parameters(DCM, FIT_PARAMS)
 
 % MDP inversion using Variational Bayes
 % FORMAT [DCM] = spm_dcm_mdp(DCM)
@@ -45,25 +45,25 @@ ALL = false;
 
 % Here we specify prior expectations (for parameter means and variances)
 %--------------------------------------------------------------------------
-prior_variance = 1/4; % smaller values will lead to a greater complexity 
+prior_variance = 1/5; % smaller values will lead to a greater complexity 
                       % penalty (posteriors will remain closer to priors)
 % inverse temperature
-prior_alpha = 10;
+prior_alpha = FIT_PARAMS.alpha;
 % learning rate
-prior_eta = 0.5;
+prior_eta = FIT_PARAMS.eta;
 % forgetting rate
-prior_omega = 0.0;
+prior_omega = FIT_PARAMS.omega;
 % inverse expected precision
-prior_beta = 1.0;
+prior_beta = FIT_PARAMS.beta;
 % loss & reward
-prior_loss = 1;
-prior_reward = 5;
+prior_loss = FIT_PARAMS.loss;
+prior_reward = FIT_PARAMS.reward;
 % prior concentration parameters on rules
-prior_pRuleObv = 5;
-prior_pRuleExcl = 3;
+prior_pRuleObv = FIT_PARAMS.pRuleObv;
+prior_pRuleExcl = FIT_PARAMS.pRuleExcl;
 % BMR
-prior_pcount = 7.4;
-prior_thres = 1;
+prior_pcount = FIT_PARAMS.pcount;
+prior_thres = FIT_PARAMS.thres;
 
 for i = 1:length(DCM.field)
     field = DCM.field{i};
@@ -97,13 +97,13 @@ for i = 1:length(DCM.field)
             pC{i,i}    = prior_variance;
         elseif strcmp(field, 'pRuleObv')
             pE.(field) = log(prior_pRuleObv);
-            pC{i,i}    = 1;
+            pC{i,i}    = prior_variance;
         elseif strcmp(field, 'pRuleExcl')
             pE.(field) = log(prior_pRuleExcl);
             pC{i,i}    = prior_variance;
         elseif strcmp(field, 'pcount')
             pE.(field) = log(prior_pcount);
-            pC{i,i}    = 1;
+            pC{i,i}    = prior_variance;
         elseif strcmp(field, 'thres')
             pE.(field) = log(prior_thres);
             pC{i,i}    = prior_variance;
@@ -216,7 +216,7 @@ if isfield(M.pE, 'pRuleObv')
 end
 
 if isfield(M.pE, 'pRuleExcl')
-    mdp.d{4}(4)= mdp.pRuleExcl;
+    mdp.d{4}(4) = mdp.pRuleExcl;
     mdp.d0 = mdp.d; mdp.d_0 = mdp.d0;
 end
 
@@ -235,6 +235,7 @@ n = numel(j);   % number of trials
 % Add correct source cards from experiment to each trial
 MDP = WSCT_draw_from_exp_obs(MDP, U);
 controllable_factor = 6;
+
 
 % solve MDP and accumulate log-likelihood
 %--------------------------------------------------------------------------

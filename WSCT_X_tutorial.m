@@ -48,7 +48,7 @@ function [MDP, OPTIONS] = WSCT_X_tutorial(MDP,OPTIONS)
 % OPTIONS.D             - switch to update initial states over epochs
 % OPTIONS.BMR           - Bayesian model reduction for multiple trials
 %                         see: spm_MDP_VB_sleep(MDP,BMR)
-% OPTIONS.BMR1          - Bayesian model reduction once
+% OPTIONS.BMR0          - Bayesian model reduction
 % Outputs:
 %
 % MDP.P(M1,...,MF,T)    - probability of emitting action M1,.. over time
@@ -212,10 +212,20 @@ if size(MDP,2) > 1
                 if isfield(OPTIONS.BMR1, 'applied') && OPTIONS.BMR1.applied == true
                     OPTIONS.BMR1.trials = [OPTIONS.BMR1.trials i];
                     disp(['BMR after trial: ' num2str(i)])
+
                 end
             end
         end
     end
+
+    % % determine if agents are analytical solvers
+    % for m=1:size(MDP,1)
+    %     % solver if 4 last guesses are correct
+    %     if all(MDP(m, end-3:end).o(5,3)==2) && isfield(OPTIONS, 'BMR0') && OPTIONS.BMR0.trials == []
+    %         MDP(m,:).solver = 'analytical';
+    %     end
+    % end
+
     
     % plot summary statistics - over trials
     %----------------------------------------------------------------------
@@ -987,16 +997,18 @@ for t = 1:T
                     else
                         eg      = (qu - pu)'*Q(p{m});   % G_error = (pi - pi_0) * (-G)
                         dFdg    = qb{m} - beta + eg;    % beta_update = beta - beta_0 + G_error
-                        % disp('t='), disp(t)
-                        % disp('G='), disp(Q(p{m}))
-                        % disp('qu = '), disp(qu)
-                        % disp('pu = '), disp(pu)                        
-                        % disp('G_error='), disp(eg)
-                        % disp('beta_old='), disp(qb{m})
                         qb{m}   = qb{m} - dFdg/2;       % beta = beta - beta_update/2
-                        % disp('beta_new='), disp(qb{m})
                         w{m}(t) = 1/qb{m};              % gamma = 1/beta
-                        % disp('beta_update: '), disp(dFdg)
+                        if isfield(OPTIONS.BMR0, 'applied') && OPTIONS.BMR0.applied == true
+                            disp('t='), disp(t)
+                            disp(['without softmax: qu = ' mat2str(qE{m}(p{m}) + w{m}(t)*Q(p{m}) + F(p{m})) ' pu = ' mat2str(qE{m}(p{m}) + w{m}(t)*Q(p{m}))])
+                            disp('G='), disp(Q(p{m}))
+                            disp('qu = '), disp(qu)
+                            disp('pu = '), disp(pu)                        
+                            disp('G_error='), disp(eg)
+                            disp('beta_new='), disp(qb{m})
+                            disp('beta_update: '), disp(dFdg)
+                        end
                     end
                     
                     % simulated dopamine responses (expected precision)

@@ -11,7 +11,7 @@ function [MDP, BMR] = WSCT_prune(MDP, BMR)
 
 % Extract parameters from BMR structure
 %--------------------------------------------------------------------------
-f = BMR.f;    % Hidden factor to integrate over
+f = BMR.f;    % Hidden factor to consider
 pcount = BMR.pcount;    % Prior counts added during model reduction
 thres = BMR.thres;    % Threshold for Bayesian model reduction
 eps = BMR.eps;
@@ -52,16 +52,17 @@ if length(j) > 1
     % disp(['r (p) = ' mat2str(p)])
     F = zeros(length(j), 1);
     for i = 1:length(j)
+        %r = ones(size(p))*eps;
         r = p;
         r(i) = r(i) + pcount;       % r(i) + pcount normally
         F(i) = spm_MDP_log_evidence(q,p,r);
         BMR.rF{i} = [BMR.rF{i} F(i)];             % store expected free energy reduction
-        disp(['rF{' num2str(i) '} = ' mat2str(BMR.rF{i})])
+        % disp(['rF{' num2str(i) '} = ' mat2str(BMR.rF{i})])
 
-        disp(['p = ' mat2str(p)])
-        disp(['q = ' mat2str(q)])
-        disp(['r = ' mat2str(r)])
-        disp(['F(i) = ' num2str(F(i))])
+        % disp(['p = ' mat2str(p)])
+        % disp(['q = ' mat2str(q)])
+        % disp(['r = ' mat2str(r)])
+        % disp(['F(i) = ' num2str(F(i))])
     end
     [Fmin, imin] = min(F);
     jmin = j(imin);   % Index in pD
@@ -78,22 +79,22 @@ if length(j) > 1
         BMR.rD      = [BMR.rD rD];
         BMR.sD      = [BMR.sD sD];
     
-        disp(['r = ' mat2str(r)])
-        disp(['F(i) = ' num2str(F(i))])
-        disp('Selected reduced prior (rD):'), disp(rD)
-        disp('Updated posterior (sD):'), disp(sD)
+        % % disp(['r = ' mat2str(r)])
+        % % disp(['F(i) = ' num2str(F(i))])
+        % disp('Selected reduced prior (rD):'), disp(rD)
+        % disp('Updated posterior (sD):'), disp(sD)
     else
         BMR.applied     = false;
         sD = q; %sD(j) = q;
         rD = p; %rD(j) = p;
-        disp('No significant model reduction found.')
+        % disp('No significant model reduction found.')
     end
 else
     % If only one parameter, retain original counts
     sD = q; %sD(j) = q;
     rD = p; %rD(j) = p;
     BMR.applied = false;
-    disp('Only one parameter present; no reduction applied.');
+    % disp('Only one parameter present; no reduction applied.');
 end
 % Update MDP structure
 MDP.d{f}    = sD;
